@@ -1,0 +1,1 @@
+fluent 2ddp -t$PBS_NP -pinfiniband -cnf=$PBS_NODEFILE -g -ssh < flu-cmd

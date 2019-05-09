@@ -1,0 +1,60 @@
+/file/read-case mesh10long_refine1_slidetop.cas
+
+;---- Output control -----
+/file/auto-save/data-frequency 0
+/file/auto-save/root-name Aurelia_refine1_ypart
+/file/auto-save/append-file-name-with time-step 5
+/file/auto-save/retain-most-recent-files yes
+/file/auto-save/max-files 5
+;/file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
+/file/transient-export/ensight-g-t/ EnsightSTrefine_ 29 () fluid () pressure () n y ensight1 12 y
+
+;---- Initialize flow ----
+/solve/initialize/initialize-flow
+
+;---- Adaptation control -----
+/adapt/set/coarsen-mesh? no
+/adapt/set/refine-mesh? no
+/adapt/set/max-level-refine 0
+/adapt/free-registers yes
+
+;---- Dyn mesh control -----
+;; /def/dyn-mesh/zones/delete wall
+/def/dyn-mesh/controls/remesh-param/length-max 0.02
+/def/dyn-mesh/controls/remesh-param/length-min 0.0002
+/def/dyn-mesh/controls/remesh-param/zone-remeshing yes
+;; /def/dyn-mesh/trans-settings/verbos 1
+/def/dyn-mesh/controls/remesh-param/size-rem-interval 3
+/def/dyn-mesh/controls/remesh-param/cell-skew-max 0.8
+;; /def/dyn-mesh/controls/smooth-param/diffusion-coeff-param 1.5
+;; /def/dyn-mesh/controls/smooth-param/max-iter 30
+
+;; this is 1e-10 on other ref cases!
+/def/dyn-mesh/controls/smooth-param/rel-conv-tol 1e-5 
+
+/def/dyn-mesh/controls/smooth-param/skew-smooth-cell-skew-max 0.5
+/def/dyn-mesh/controls/smooth-param/skew-smooth-niter 12
+
+
+;---- Parallel settings -----
+;; /par/part/auto/across-zones no
+;; /par/part/set/origin 0 0.2
+/par/part/set/merge yes 0
+/par/part/set/smooth yes 0
+;; /par/part/method cartesian-y 8
+;; /par/part/use-stored-part
+;; /par/part/auto/method cartesian-y
+/par/load-balance/dynamic-mesh y n 10 5
+;; /par/load-balance/mesh-adaption no
+;; /par/load-balance/physical-models no
+
+;---- Solver options ----
+/solve/set/limiter no
+/solve/set/flow-warnings no
+/solve/set/reporting-int 5
+/solve/set/under-relax/mom 0.5
+/solve/set/under-relax/press 0.5
+;; /solve/set/time-step 0.0013888
+/solve/set/time-step 0.0027778
+
+/solve/dual-time-iterate 31000 40
