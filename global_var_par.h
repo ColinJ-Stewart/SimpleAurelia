@@ -7,8 +7,8 @@
 /* constants */
 #define MAX_NODES 400			/* maximum number of nodes on the exum or subum surface*/
 #define NUM_ZONES 2				/* number of zones that are being moved (i.e. number of zones that comprise the jellyfish)*/
-#define EX_ZONE 20				/* mesh zone ID in fluent (found in BC menu)*/
-#define SUB_ZONE 21				/* mesh zone ID in fluent (found in BC menu)*/
+#define EX_ZONE 26				/* mesh zone ID in fluent (found in BC menu)*/
+#define SUB_ZONE 27				/* mesh zone ID in fluent (found in BC menu)*/
 
 
 /* + global variables */

@@ -8,11 +8,15 @@ int isRamping = 0;
 
 static double tSim_ex = 0.0;
 static double tSim_sub = 0.0;
+static double tSim_intfc = 0.0;
 
 static int preIt_ex = -1;
 static int preIt_sub = -1;
+static int preIt_intfc = -1;
+
 static int preTime_ex = -1;
 static int preTime_sub = -1;
+static int preTime_intfc = -1;
 
 static int cycleN_prev = 1;
 
@@ -274,6 +278,12 @@ double Get_SimTimeInCycle(char meshZone)
 				CURRENT_TIME, tSim_sub, tauSim, timestepSim);
 		}
 	}
+	else if (meshZone == 'i') {
+		if (NewTimeStepForThisZone('i') && (N_TIME > 0)) {
+			tSim_intfc = tSim_intfc + timestepSim;		
+		}
+		tauSim = fmod(tSim_intfc,PERIOD);
+	}
 	
 	
 	return tauSim;
@@ -290,21 +300,26 @@ int NewTimeStepForThisZone(char zone)
 {
 	int new_zone_ts = 0;
 
-	if (zone == 'e')
+	switch (zone)
 	{
-		if (N_TIME != preTime_ex) 					/* This will need to be changed for implicit method!*/
-			new_zone_ts = 1;
-		else 
-			new_zone_ts = 0;
+		case 'e' :
+			if (N_TIME != preTime_ex) 
+				new_zone_ts = 1;
+			break;
+		
+		case 's' :
+			if (N_TIME != preTime_sub) 
+				new_zone_ts = 1;
+			break;
+			
+		case 'i' :
+			if (N_TIME != preTime_intfc) 
+				new_zone_ts = 1;
+			break;
+		
+		default :
+			Message0("(timing_and_counters_par.c::NewTimeStepForThisZone) Invalid meshzone specified \n");
 	}
-	else if (zone == 's')
-	{
-		if (N_TIME != preTime_sub) 
-			new_zone_ts = 1;
-		else 
-			new_zone_ts = 0;
-	}
-	else Error("!");
 	
 	return new_zone_ts;
 }
@@ -319,22 +334,27 @@ Output:
 int NewIterationForThisZone(char zone)
 {
 	int new_zone_it = 0;
-
-	if (zone == 'e')
+	
+	switch (zone)
 	{
-		if (N_ITER != preIt_ex) 
-			new_zone_it = 1;
-		else 
-			new_zone_it = 0;
+		case 'e' :
+			if (N_ITER != preIt_ex) 
+				new_zone_it = 1;
+			break;
+		
+		case 's' :
+			if (N_ITER != preIt_sub) 
+				new_zone_it = 1;
+			break;
+			
+		case 'i' :
+			if (N_ITER != preIt_intfc) 
+				new_zone_it = 1;
+			break;
+		
+		default :
+			Message0("(timing_and_counters_par.c::NewIterationForThisZone) Invalid meshzone specified \n");
 	}
-	else if (zone == 's')
-	{
-		if (N_ITER != preIt_sub) 
-			new_zone_it = 1;
-		else 
-			new_zone_it = 0;
-	}
-	else Error("!");
 	
 	return new_zone_it;
 }
@@ -348,12 +368,13 @@ Output:
 ----------------------------------------------------------------*/
 int NewIteration()
 {
-	int new_it;
+	int new_it = 0;
 	
-	if (N_ITER != preIt_ex && N_ITER != preIt_sub)
+	if ((N_ITER != preIt_ex) && (N_ITER != preIt_sub) && 
+		(N_ITER != preIt_intfc) )
+	{
 		new_it = 1;
-	else
-		new_it = 0;
+	}
 
 	return new_it;
 }
@@ -370,10 +391,11 @@ int NewTimeStep()
 {
 	int new_ts;
 	
-	if (N_TIME != preTime_ex && N_TIME != preTime_sub)
+	if ((N_TIME != preTime_ex) && (N_TIME != preTime_sub) &&
+	    (N_TIME != preTime_intfc) )
+	{
 		new_ts = 1;
-	else
-		new_ts = 0;
+	}
 
 	return new_ts;
 }
@@ -435,21 +457,26 @@ Output:
 ----------------------------------------------------------------*/
 void UpdateCounters(char zone)
 {
-	if (zone == 'e')
+	switch (zone)
 	{
-		if (N_TIME != preTime_ex) 
-			preTime_ex = N_TIME;
-		if (N_ITER != preIt_ex)
-			preIt_ex = N_ITER;
+		case 'e' :
+			if (N_TIME != preTime_ex) preTime_ex = N_TIME;
+			if (N_ITER != preIt_ex) preIt_ex = N_ITER;
+			break;
+		
+		case 's' :
+			if (N_TIME != preTime_sub) preTime_sub = N_TIME;
+			if (N_ITER != preIt_sub) preIt_sub = N_ITER;
+			break;
+			
+		case 'i' :
+			if (N_TIME != preTime_intfc) preTime_intfc = N_TIME;
+			if (N_ITER != preIt_intfc) preIt_intfc = N_ITER;
+			break;
+			
+		default:
+			Message0("(timing_and_counters_par.c::UpdateCounters) Invalid meshzone specified \n");
 	}
-	else if (zone == 's')
-	{
-		if (N_TIME != preTime_sub) 
-			preTime_sub = N_TIME;
-		if (N_ITER != preIt_sub)
-			preIt_sub = N_ITER;
-	}
-	else Error("!");
 }
 
 

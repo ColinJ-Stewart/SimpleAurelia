@@ -146,7 +146,7 @@ DEFINE_INIT(init_node_mem, domain)
 			#endif
 			
 			#if RP_NODE
-				mkdir("/tmp", 0700);
+				_mkdir("/tmp", 0700);
 				total_bytes_copied = host_to_node_sync_file("/tmp");
 			#endif
 			Message("Total bytes copied by node %i is %d\n", myid, total_bytes_copied);
@@ -207,7 +207,7 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		/* ------------- MEMORY ------------- */ 
 		if ( NewTimeStepForThisZone(meshZone) )
 		{
-			/*Message("New time step. Reinitializing node memory\n");*/
+			Message("New time step. Reinitializing node memory\n");
 			Reinit_node_mem_int(tf, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
 		}
 			
@@ -227,7 +227,7 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		if((LET_IT_SWIM) && (N_TIME > 2)) 
 		{
 			if ( NewTimeStepForThisZone(meshZone) )
-				/*Message("Calculating swimming speed... \n");	*/
+				Message("Calculating swimming speed... \n");	
 			vel = Get_BodyVelocity(tf, meshZone, fx_tot, del_x_ptr);
 			if ( NewTimeStepForThisZone(meshZone) )
 				Message("\tvel_x = %lf, del_x = %lf\n", vel, del_x);	/** make Message0 after DEBUG **/
@@ -235,7 +235,7 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 
 		/* ------ MESH MOTION/KINEMATICS -------  */
 		if ( NewTimeStepForThisZone(meshZone) )
-			Message0("Moving jellyfish (node %i)... \n", myid);
+			Message("Moving jellyfish (node %i)... \n", myid);
 		Calc_Mesh_Movement(tf, meshZone, tauSim, del_x, vel);
 	#endif 
 	
@@ -312,14 +312,35 @@ DEFINE_GEOM(axis_bot, domain, dt, position)
 	/* #endif */
 }
 
-/************************ wall_top ***************************** */
-DEFINE_GEOM(wall_top, domain, dt, position)
+/************************ CG_motion_intfc **********************/
+/* Move the interfaces between nearfield (tet) and farfield (hex) meshes */
+/****************************************************************/
+DEFINE_CG_MOTION(CG_motion_intfc, dt, vel, omega, time, dtime)
 {
-	/* #if !RP_HOST */
-	/* int counter_bot = 0; */
-	/* Message("(node%i) Call %i\n", myid, ++counter_bot); */
-    position[1] = 0.93;		/* top wall y-position */
-	/* #endif */
+	double bodyVel = 0.0;
+	double del_x = 0.0;
+	double *del_x_ptr = &del_x;
+	char meshZone = 'i';
+	
+	#if !RP_HOST
+		Thread *tf_ex	= Lookup_Thread(domain, EX_ZONE);
+		Thread *tf_sub	= Lookup_Thread(domain, SUB_ZONE);
+		
+		/* Calculate forces */
+		double fx_ex 	= Get_Force2_x(tf_ex);					/* net force across jelly exum [N] */
+		double fx_sub 	= Get_Force2_x(tf_sub);		/* net force across jelly sub [N] */
+		double fx_tot = fx_ex + fx_sub;
+		
+		/* Calculate current position, body velocity */
+		if((LET_IT_SWIM) && (N_TIME > 2)) 
+		{
+			bodyVel = Get_BodyVelocity(tf_ex, 'e', fx_tot, del_x_ptr);
+		}
+		
+		vel[0] = bodyVel;
+		UpdateCounters('i');
+	
+	#endif
 }
 
 /********************** Forces_at_end *************************** */
@@ -378,7 +399,7 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double xS, velS, del_xS;
 		double f_net, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B;
 		double P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B;
-		/*Message("---HOST EXECUTE AT END---\n");*/
+		Message("---HOST EXECUTE AT END---\n");
 	#endif
 	
 	
@@ -418,324 +439,4 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 }
 
 
-/********************** on_demand_debug *************************** */
-/* debugging macro that can be called at any point to print out  */
-/* information to console */
-/*************************************************************** */
-DEFINE_ON_DEMAND(on_demand_debug_ex)
-{
-	#if RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		char meshZone = '\0';
-		int meshZoneTemp;
-		printf("Host done initializing vars... \n");
-		/* ------ PRINT TIME STEP HEADER ---------  */
-		/* Print_Timestep_Header(); */
-	#endif
-	
-	
-	#if !RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		Thread *tf;
-		Thread *tf_ex;
-		Thread *tf_sub;
-		double	tauSim, fx_ex, fx_sub, fx_tot;
-		double vel = 0.0, del_x = 0.0;
-		double *del_x_ptr = &del_x;
-		char meshZone;
-		int meshZoneTemp;
-		double Sat;
-		int zone_ID;
-		face_t f;
-		Node *v;
-		int n;
-		int ki = 0;
-		int i = 0;
-		tf_ex = Lookup_Thread(domain, EX_ZONE);
-		tf_sub = Lookup_Thread(domain, SUB_ZONE);
-		printf("Node%i done initializing vars... \n", myid);
-		
-		Reinit_node_mem_double(tf_ex, 0, 1);
-		
-		
-		/* ----- Exumbrella --------  */
-		printf("Node%i inspecting nodes on zone %i:\n", myid, EX_ZONE);
-		ki = 0;
-		begin_f_loop(f,tf_ex) 
-		{  
-			if PRINCIPAL_FACE_P(f,tf_ex)
-			{
-				f_node_loop(f,tf_ex,n) 
-				{
-					v = F_NODE(f,tf_ex,n);
-					if (N_UDMI(v,0) == 1)
-					{					 
-						N_UDMI(v,0) = 0;
-						ki++;
-					}
-				}
-			}
-		} 
-		end_f_loop(f,tf_ex)
-		printf("Node%i has %i nodes on zone %i\n", myid, ki, EX_ZONE);
-		printf("\n");
 
-		
-		
-	#endif
-}
-
-
-DEFINE_ON_DEMAND(on_demand_debug_sub)
-{
-	#if RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		char meshZone = '\0';
-		int meshZoneTemp;
-		printf("Host done initializing vars... \n");
-		/* ------ PRINT TIME STEP HEADER ---------  */
-		/* Print_Timestep_Header(); */
-	#endif
-	
-	
-	#if !RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		Thread *tf;
-		Thread *tf_ex;
-		Thread *tf_sub;
-		double	tauSim, fx_ex, fx_sub, fx_tot;
-		double vel = 0.0, del_x = 0.0;
-		double *del_x_ptr = &del_x;
-		char meshZone;
-		int meshZoneTemp;
-		double Sat;
-		int zone_ID;
-		face_t f;
-		Node *v;
-		int n;
-		int ki = 0;
-		int i = 0;
-		tf_ex = Lookup_Thread(domain, EX_ZONE);
-		tf_sub = Lookup_Thread(domain, SUB_ZONE);
-		printf("Node%i done initializing vars... \n", myid);
-		
-		Reinit_node_mem_double(tf_sub, 0, 1);
-		
-		/* ----- Sububmrella --------  */
-		printf("Node%i inspecting nodes on zone %i:\n", myid, SUB_ZONE);
-		ki = 0;
-		begin_f_loop(f,tf_sub) 
-		{  
-			if PRINCIPAL_FACE_P(f, tf_sub)
-			{			
-				f_node_loop(f,tf_sub,n) 
-				{
-					v = F_NODE(f,tf_sub,n);
-					if (N_UDMI(v,0) == 1)
-					{					 
-						N_UDMI(v,0) = 0;
-						ki++;
-					}
-				}
-			}
-		} 
-		end_f_loop(f,tf_sub)
-		printf("Node%i has %i nodes on zone %i\n", myid, ki, SUB_ZONE);
-		printf("\n");
-		
-		
-	#endif
-}
-
-DEFINE_ON_DEMAND(debug_Jelly_motion_EX_par)
-{
-	#if RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		char meshZone = '\0';
-		int meshZoneTemp;
-		
-		/* ------ PRINT TIME STEP HEADER ---------  */
-		Print_Timestep_Header();
-	#endif
-	
-	
-	#if !RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		Thread *tf;
-		Thread *tf_ex;
-		Thread *tf_sub;
-		double	tauSim, fx_ex, fx_sub, fx_tot;
-		double vel = 0.0, del_x = 0.0;
-		double *del_x_ptr = &del_x;
-		char meshZone;
-		int meshZoneTemp;
-		double Sat;
-		int zone_ID;
-		
-		Message("Node%i initializing vars... \n", myid);
-		/* tf = DT_THREAD(dt); */
-		tf = Lookup_Thread(domain, EX_ZONE);
-		zone_ID = THREAD_ID(tf);
-		tf_ex = Lookup_Thread(domain, EX_ZONE);
-		tf_sub = Lookup_Thread(domain, SUB_ZONE);
-		SET_DEFORMING_THREAD_FLAG(THREAD_T0(tf));
-		
-		/* --------- MESH ZONE INFO ---------- */ 
-		Message("Node%i getting mesh zone... \n", myid);
-		if (zone_ID == EX_ZONE) meshZone = 'e';
-		else if (zone_ID == SUB_ZONE) meshZone = 's';
-		else Error("Mesh zone not defined properly!\n");
-		
-		/* ------ PRINT HEADERS ---------  */
-		Message("Node%i printing timestep header... \n", myid);
-		#if !PARALLEL
-			Print_Timestep_Header();
-		#endif
-		Print_Zone_Header(meshZone);
-		
-		/* ------------- MEMORY ------------- */ 
-		if ( NewTimeStepForThisZone(meshZone) )
-		{
-			Message("New time step. Reinitializing node memory\n");
-			Reinit_node_mem_int(tf, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
-		}
-		
-		/* ------------- TIME  --------------  */	
-		tauSim = Get_SimTimeInCycle(meshZone);	/* SIMULATED time [s] within the cycle, i.e. in the range [0, period). Pause time will cause the simulated time to stop */
-		
-		/* ------------ FORCES -------------  */
-		fx_ex = Get_Force2_x(tf_ex);				/* net force on exumbrellar (top) surface [N] */
-		fx_sub = Get_Force2_x(tf_sub);			/* net force on subumbrellar (bottom) surface [N] */
-		fx_tot = fx_ex + fx_sub;
-		Message("Force_x: %lf, fx_ex: %lf, fx_sub: %lf\n", fx_tot, fx_ex, fx_sub);
-		
-		/* ------ SWIMMING DYNAMICS -------  */
-		if((LET_IT_SWIM) && (N_TIME > 2)) 
-		{
-			Message("Calculating swimming speed... \n");	
-			vel = Get_BodyVelocity(tf, meshZone, fx_tot, del_x_ptr);
-			Message("\tvel_x = %lf, del_x = %lf\n", vel, del_x);	/** make Message0 after DEBUG * */
-		}
-		
-		/* ------ MESH MOTION/KINEMATICS -------  */
-		Message("\nMoving jellyfish (node %i)... \n", myid);
-		Calc_Mesh_Movement_debug(tf, meshZone, tauSim, del_x, vel);
-	#endif
-	
-	
-	/* send the meshzone info from node0 to host  */
-	meshZoneTemp = meshZone;
-	node_to_host_int_1(meshZoneTemp);
-	meshZone = meshZoneTemp;
-	
-	
-	#if RP_HOST
-		/* ------ PRINT ZONE HEADER ------  */
-		Print_Zone_Header(meshZone);
-	#endif
-	
-	/* ------ STORE THIS TIME STEP # -------  */
-	Message("Updating counters... ");
-	UpdateCounters(meshZone);
-	Message("Done.\n");
-	
-	Message("---FINISHED GRID MOTION UDF---\n");
-
-}
-
-DEFINE_ON_DEMAND(debug_Jelly_motion_SUB_par)
-{
-	#if RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		char meshZone = '\0';
-		int meshZoneTemp;
-		
-		/* ------ PRINT TIME STEP HEADER ---------  */
-		Print_Timestep_Header();
-	#endif
-	
-	
-	#if !RP_HOST
-		/* --------- INITIALIZE VARS ---------  */
-		Thread *tf;
-		Thread *tf_ex;
-		Thread *tf_sub;
-		double	tauSim, fx_ex, fx_sub, fx_tot;
-		double vel = 0.0, del_x = 0.0;
-		double *del_x_ptr = &del_x;
-		char meshZone;
-		int meshZoneTemp;
-		double Sat;
-		int zone_ID;
-		
-		Message("Node%i initializing vars... \n", myid);
-		/* tf = DT_THREAD(dt); */
-		tf = Lookup_Thread(domain, SUB_ZONE);		/* check subum surface */
-		zone_ID = THREAD_ID(tf);
-		tf_ex = Lookup_Thread(domain, EX_ZONE);
-		tf_sub = Lookup_Thread(domain, SUB_ZONE);
-		SET_DEFORMING_THREAD_FLAG(THREAD_T0(tf));	
-		
-		/* --------- MESH ZONE INFO ---------- */ 
-		Message("Node%i getting mesh zone... \n", myid);
-		if (zone_ID == EX_ZONE) meshZone = 'e';
-		else if (zone_ID == SUB_ZONE) meshZone = 's';
-		else Error("Mesh zone not defined properly!\n");
-		
-		/* ------ PRINT HEADERS ---------  */
-		Message("Node%i printing timestep header... \n", myid);
-		#if !PARALLEL
-			Print_Timestep_Header();
-		#endif
-		Print_Zone_Header(meshZone);
-		
-		/* ------------- MEMORY ------------- */ 
-		if ( NewTimeStepForThisZone(meshZone) )
-		{
-			Message("New time step. Reinitializing node memory\n");
-			Reinit_node_mem_int(tf, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
-		}
-		
-		/* ------------- TIME  --------------  */	
-		tauSim = Get_SimTimeInCycle(meshZone);	/* SIMULATED time [s] within the cycle, i.e. in the range [0, period). Pause time will cause the simulated time to stop */
-
-		/* ------------ FORCES -------------  */
-		fx_ex = Get_Force2_x(tf_ex);				/* net force on exumbrellar (top) surface [N] */
-		fx_sub = Get_Force2_x(tf_sub);			/* net force on subumbrellar (bottom) surface [N] */
-		fx_tot = fx_ex + fx_sub;
-		Message("Force_x: %lf, fx_ex: %lf, fx_sub: %lf\n", fx_tot, fx_ex, fx_sub);
-		
-		/* ------ SWIMMING DYNAMICS -------  */
-		if((LET_IT_SWIM) && (N_TIME > 2)) 
-		{
-			Message("Calculating swimming speed... \n");	
-			vel = Get_BodyVelocity(tf, meshZone, fx_tot, del_x_ptr);
-			Message("\tvel_x = %lf, del_x = %lf\n", vel, del_x);	/** make Message0 after DEBUG * */
-		}
-		
-		/* ------ MESH MOTION/KINEMATICS -------  */
-		Message("\nMoving jellyfish (node %i)... \n", myid);
-		Calc_Mesh_Movement_debug(tf, meshZone, tauSim, del_x, vel);
-	#endif
-	
-	
-	/* send the meshzone info from node0 to host  */
-	meshZoneTemp = meshZone;
-	node_to_host_int_1(meshZoneTemp);
-	meshZone = meshZoneTemp;
-	
-	
-	#if RP_HOST
-		/* ------ PRINT ZONE HEADER ------  */
-		Print_Zone_Header(meshZone);
-	#endif
-	
-	/* ------ STORE THIS TIME STEP # -------  */
-	Message("Updating counters... ");
-	UpdateCounters(meshZone);
-	Message("Done.\n");
-	
-	Message("---FINISHED GRID MOTION UDF---\n");
-
-
-}

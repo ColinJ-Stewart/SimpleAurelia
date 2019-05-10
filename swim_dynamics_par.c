@@ -125,15 +125,16 @@ double Get_BodyVelocity(Thread *tf, char meshZone, double fx_tot, double *del_x_
 		
 		x_position = Rezero(tf);
 		
-		if( I_AM_NODE_ZERO_P || !PARALLEL)
+		if ((myid == 0) || (myid == 1000000))	
 		{
 			
 			/* Message("\tx_position = %16.12f, ", x_position); */
 			/* Message("x_prev = %16.12f, x_prevS = %16.12f\n", x_prev, xS_prev); */
 			
 			
-			if (meshZone == 'e') {
-				if (NewTimeStepForThisZone(meshZone)) 
+			if ((meshZone == 'e') || (meshZone == 'i')) 
+			{
+				if (NewTimeStepForThisZone('e') && NewTimeStepForThisZone('i')) 
 				{
 					Message("\t-------- calc -------- \n");
 					ke = 1;
@@ -339,7 +340,7 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, doubl
 		
 		x_position = Rezero(tf);
 		
-		if( I_AM_NODE_ZERO_P || !PARALLEL)
+		if ((myid == 0) || (myid == 1000000))	
 		{
 			
 			/* Message("\tx_position = %16.12f, ", x_position); */
