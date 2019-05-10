@@ -334,7 +334,7 @@ DEFINE_CG_MOTION(CG_motion_intfc, dt, vel, omega, time, dtime)
 		/* Calculate current position, body velocity */
 		if((LET_IT_SWIM) && (N_TIME > 2)) 
 		{
-			bodyVel = Get_BodyVelocity(tf_ex, 'e', fx_tot, del_x_ptr);
+			bodyVel = Get_BodyVelocity(tf_ex, 'i', fx_tot, del_x_ptr);
 		}
 		
 		vel[0] = bodyVel;
@@ -363,9 +363,9 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double del_x = Get_Del_At_End('e');
 		double del_xS = Get_Del_At_End('s');
 		
-		double f_ex = Get_Force2_x(tf_ex_end);				/* net force on exumbrellar (top) surface [N] */
-		double f_sub = Get_Force2_x(tf_sub_end);			/* net force on subumbrellar (bottom) surface [N] */
-		double f_net = f_ex + f_sub;
+		double fx_ex = Get_Force2_x(tf_ex_end);				/* net force on exumbrellar (top) surface [N] */
+		double fx_sub = Get_Force2_x(tf_sub_end);			/* net force on subumbrellar (bottom) surface [N] */
+		double fx_tot = fx_ex + fx_sub;
 		
 		double P_in_ex = Compute_Power_In(tf_ex_end, vel, 0.0);
 		double P_in_sub = Compute_Power_In(tf_sub_end, velS, 0.0);
@@ -386,7 +386,7 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double *P_drag_SMC_ptr = &P_drag_SMC;
 		double *P_drag_B_ptr = &P_drag_B;
 		/* Message0("\n---NODE%i EXECUTE AT END---\n", myid); */
-		Message0("Force_x at end: %f\n",f_net);	
+		Message0("Force_x at end: %f\n",fx_tot);	
 		
 		Compute_Power_Out(vel, 0.0, f_thrust_SMC_ptr, 	f_thrust_B_ptr, f_drag_SMC_ptr, 	f_drag_B_ptr, 
 									P_thrust_SMC_ptr,	P_thrust_B_ptr, P_drag_SMC_ptr, 	P_drag_B_ptr);
@@ -397,7 +397,7 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 	#if RP_HOST
 		double x, vel, del_x;
 		double xS, velS, del_xS;
-		double f_net, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B;
+		double fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B;
 		double P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B;
 		Message("---HOST EXECUTE AT END---\n");
 	#endif
@@ -407,21 +407,21 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 	/* - Send data from node0 to host for printing 	   */
 	node_to_host_real_3(x, vel, del_x);
 	node_to_host_real_3(xS, velS, del_xS);
-	node_to_host_real_5(f_net, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
+	node_to_host_real_5(fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
 	node_to_host_real_5(P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B);
 	
 	
 	/* SERIAL/HOST writes out results for instant displacement, vel, force, power, etc.  */
 	#if !RP_NODE
-		Compute_Averages(vel, f_net, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
+		Compute_Averages(vel, fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 		
 		Write_to_Disp_OutputFile('e', x, vel, del_x, 	
-								f_net, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
+								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 													
 		Write_to_Disp_OutputFile('s', xS, velS, del_xS,
-								f_net, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
+								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);							
 	#endif
 	
