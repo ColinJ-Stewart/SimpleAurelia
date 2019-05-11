@@ -1981,12 +1981,8 @@ void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
 
 
 
-/*---------- Store_OldKinematicVars ---------------------------
-Purpose: 
-
-Input:	
-
-Output:
+/**---------- Store_OldKinematicVars ---------------------------
+* TODO: Clean this up and make sure this isn't part of the problem w/ running on n>2 nodes
 ---------------------------------------------------------------- */
 void Store_OldKinematicVars(void)
 {
@@ -2001,71 +1997,6 @@ void Store_OldKinematicVars(void)
 	int *tip_arr, *iworkN;
 	
 	#if PARALLEL
-	
-	/** Complex tip coord sync **/
-	/* allocate dynamic memory array  */ 
-	/* tip_arr = (int *)malloc(sizeof(int)*compute_node_count); */
-	/* if (tip_arr == NULL) */
-		/* Error("malloc failed!\n"); */
-	
-	/* iworkN = (int *)malloc(sizeof(int)*compute_node_count);	 */
-	/* if (iworkN == NULL) */
-		/* Error("malloc failed!\n"); */
-	
-	/* initialize arrays  */ 
-	/* for (N = 0; N < compute_node_count; N++) */
-	/* { */
-		/* tip_arr[N] = 0; */
-		/* iworkN[N] = 0; */
-	/* } */
-	
-	/* fill and sync tip flag array  */ 
-	/* tip_arr[myid] = iHaveTip; */
-	/* PRF_GISUM(tip_arr, compute_node_count, iworkN); */
-	
-	/* find the first node that has the tip  */ 
-	/* N = 0; */
-	/* while (tipScan == 0) tipScan = tip_arr[N++]; */
-	
-	/* send tip coords from that node (nodeN --> node0 --> all_compute_nodes )  */ 
-	/* if (myid == N) */
-	/* { */
-		/* send vars to node0  */ 
-		/* PRF_CSEND_REAL(node_zero, &xTip, 1, myid); */
-		/* PRF_CSEND_REAL(node_zero, &yTip, 1, myid); */
-		/* PRF_CSEND_REAL(node_zero, &xTipUnflexed, 1, myid); */
-		/* PRF_CSEND_REAL(node_zero, &yTipUnflexed, 1, myid); */
-	/* } */
-	/* else if (I_AM_NODE_ZERO_P) */
-	/* { */
-		/* receive vars from nodeN  */ 
-		/* PRF_CRECV_REAL(N, &xTip, 1, N); */
-		/* PRF_CRECV_REAL(N, &yTip, 1, N); */
-		/* PRF_CRECV_REAL(N, &xTipUnflexed, 1, N); */
-		/* PRF_CRECV_REAL(N, &yTipUnflexed, 1, N); */
-		
-		/* send to all other compute nodes  */ 
-		/* compute_node_loop_not_zero(i) */
-		/* { */
-			/* PRF_CSEND_REAL(i, &xTip, 1, myid); */
-			/* PRF_CSEND_REAL(i, &yTip, 1, myid); */
-			/* PRF_CSEND_REAL(i, &xTipUnflexed, 1, myid); */
-			/* PRF_CSEND_REAL(i, &yTipUnflexed, 1, myid);		 */
-		/* } */
-	/* } */
-	/* else */
-	/* { */
-		/* receive vars from node0  */ 
-		/* PRF_CRECV_REAL(node_zero, &xTip, 1, node_zero); */
-		/* PRF_CRECV_REAL(node_zero, &yTip, 1, node_zero); */
-		/* PRF_CRECV_REAL(node_zero, &xTipUnflexed, 1, node_zero); */
-		/* PRF_CRECV_REAL(node_zero, &yTipUnflexed, 1, node_zero); */
-	/* } */
-	
-	/* de-allocate memory  */ 
-	/* free(tip_arr); */
-	/* free(iworkN); */
-	
 	
 	/** Simple tip coord sync **/
 	/* ----------------------  */
