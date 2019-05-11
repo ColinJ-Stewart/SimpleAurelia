@@ -146,7 +146,7 @@ DEFINE_INIT(init_node_mem, domain)
 			#endif
 			
 			#if RP_NODE
-				_mkdir("/tmp", 0700);
+				mkdir("/tmp", 0700);
 				total_bytes_copied = host_to_node_sync_file("/tmp");
 			#endif
 			Message("Total bytes copied by node %i is %d\n", myid, total_bytes_copied);
