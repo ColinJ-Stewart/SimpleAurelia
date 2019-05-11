@@ -7,7 +7,7 @@
 ;; /file/auto-save/retain-most-recent-files yes
 ;; /file/auto-save/max-files 5
 ;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-/file/transient-export/ensight-g-t/ ES_Aur_v1.1dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure () n y ensight1 12 y
+/file/transient-export/ensight-g-t/ ES_Aur_v1.1dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure () n y ensight1 3 y
 ;; /solve/set/limiter-warnings? no
 ;; /solve/set/flow-warnings? no
 ;; /solve/set/reporting-interval 100

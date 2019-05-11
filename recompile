@@ -1,0 +1,19 @@
+#!/bin/bash
+
+cd libudf*
+FILE_NAME=$PWD/lnamd64
+echo
+echo "Are you sure you want to delete the files in"
+echo "$FILE_NAME" 
+read -p "before recompiling? (Y/N): " -n 1 -r
+if [[ $REPLY =~ ^[Yy]$ ]];  then
+	find $FILE_NAME -maxdepth 2 -type f -name "*.o" -delete
+	find $FILE_NAME -maxdepth 2 -type f -name "*.so" -delete
+	find $FILE_NAME -maxdepth 2 -type f -name "*.c" -delete
+	find $FILE_NAME -maxdepth 2 -type f -name "*.h" -delete
+	find $FILE_NAME -maxdepth 2 -type f -name "makelog" -delete
+	echo "all those files have been deleted............."
+fi
+cd $FILE_NAME/..
+make "FLUENTARCH=lnamd64"
+cd $FILE_NAME/../..
