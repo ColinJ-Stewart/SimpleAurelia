@@ -1,13 +1,64 @@
-/file/read-case mesh10long_refine1_slidetop.cas
+/file/read-case mesh12_coarse.cas
 
 ;---- Output control -----
 /file/auto-save/data-frequency 0
-/file/auto-save/root-name Aurelia_refine1_ypart
+/file/auto-save/root-name Aurelia_v1.1_dev_
 /file/auto-save/append-file-name-with time-step 5
-/file/auto-save/retain-most-recent-files yes
-/file/auto-save/max-files 5
-;/file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-/file/transient-export/ensight-g-t/ EnsightSTrefine_ 29 () fluid () pressure () n y ensight1 12 y
+;; /file/auto-save/retain-most-recent-files yes
+;; /file/auto-save/max-files 5
+;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
+/file/transient-export/ensight-g-t/ ES_Aur_v1.1dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure () n y ensight1 12 y
+;; /solve/set/limiter-warnings? no
+;; /solve/set/flow-warnings? no
+;; /solve/set/reporting-interval 100
+;; /def/dyn-mesh/trans-settings/verbos 1
+
+;---- Boundary Conditions ------
+/def/b-c/wall wall_mid y motion-bc-stationary y shear-bc-spec-shear n 0 n 0
+
+;---- Dyn mesh ------
+;; /def/dyn-mesh/dynamic-mesh? y n n n n
+;; /def/dyn-mesh/zones/delete exum
+;; /def/dyn-mesh/zones/delete subum
+;; /def/dyn-mesh/zones/delete wall_mid
+;; /def/dyn-mesh/zones/delete axis_mid_front
+;; /def/dyn-mesh/zones/delete axis_mid_back
+;; /def/dyn-mesh/zones/delete front_out
+;; /def/dyn-mesh/zones/delete back_out
+;; /def/dyn-mesh/zones/delete fluid_front
+;; /def/dyn-mesh/zones/delete fluid_back
+
+;; /def/dyn-mesh/zones/create exum user-defined Jelly_motion::libudf , , , , , 
+;; /def/dyn-mesh/zones/create subum user-defined Jelly_motion::libudf , , , , , 
+;; /def/dyn-mesh/zones/create wall_mid rigid body
+;; /def/dyn-mesh/zones/create axis_mid_front rigid body
+;; /def/dyn-mesh/zones/create axis_mid_back rigid body
+;; /def/dyn-mesh/zones/create front_out rigid body
+;; /def/dyn-mesh/zones/create back_out rigid body
+
+/def/dyn-mesh/zones/create front_out , , , , , , , 0.006 , , 0.0 ,
+/def/dyn-mesh/zones/create back_out , , , , , , , 0.006 , , 0.0 ,
+
+;---- Remeshing ------
+;; /def/dyn-mesh/controls/remesh-param/zone-remeshing yes
+;; /def/dyn-mesh/controls/remesh-param/size-rem-interval 3
+;; /def/dyn-mesh/controls/remesh-param/cell-skew-max 0.8
+;; /def/dyn-mesh/controls/remesh-param/length-max 0.02
+;; /def/dyn-mesh/controls/remesh-param/length-min 0.0002
+
+;---- Smoothing ------
+;; /def/dyn-mesh/controls/smooth-param/smoothing-method diffusion
+;; /def/dyn-mesh/controls/smooth-param/bnd-node-relaxation 0.9
+;; /def/dyn-mesh/controls/smooth-param/bnd-stiffness-factor 0.1
+;; /def/dyn-mesh/controls/smooth-param/constant-factor 0.01
+;; /def/dyn-mesh/controls/smooth-param/diffusion-coeff-param 1.5
+;; /def/dyn-mesh/controls/smooth-param/conv-tol 1e-8
+;; /def/dyn-mesh/controls/smooth-param/max-iter 30
+/def/dyn-mesh/controls/smooth-param/rel-conv-tol 1e-5 
+/def/dyn-mesh/controls/smooth-param/skew-smooth-cell-skew-max 0.5
+/def/dyn-mesh/controls/smooth-param/skew-smooth-niter 12
+;; (rp-var-define 'dynamesh/smooth/fem/amg-alpha 1e-10 ' double #f)
+;; (rp-var-define 'dynamesh/smooth/fem/amg-cpld-max-cycles 20 ' integer #f)
 
 ;---- Initialize flow ----
 /solve/initialize/initialize-flow
@@ -17,24 +68,6 @@
 /adapt/set/refine-mesh? no
 /adapt/set/max-level-refine 0
 /adapt/free-registers yes
-
-;---- Dyn mesh control -----
-;; /def/dyn-mesh/zones/delete wall
-/def/dyn-mesh/controls/remesh-param/length-max 0.02
-/def/dyn-mesh/controls/remesh-param/length-min 0.0002
-/def/dyn-mesh/controls/remesh-param/zone-remeshing yes
-;; /def/dyn-mesh/trans-settings/verbos 1
-/def/dyn-mesh/controls/remesh-param/size-rem-interval 3
-/def/dyn-mesh/controls/remesh-param/cell-skew-max 0.8
-;; /def/dyn-mesh/controls/smooth-param/diffusion-coeff-param 1.5
-;; /def/dyn-mesh/controls/smooth-param/max-iter 30
-
-;; this is 1e-10 on other ref cases!
-/def/dyn-mesh/controls/smooth-param/rel-conv-tol 1e-5 
-
-/def/dyn-mesh/controls/smooth-param/skew-smooth-cell-skew-max 0.5
-/def/dyn-mesh/controls/smooth-param/skew-smooth-niter 12
-
 
 ;---- Parallel settings -----
 ;; /par/part/auto/across-zones no
@@ -48,13 +81,27 @@
 ;; /par/load-balance/mesh-adaption no
 ;; /par/load-balance/physical-models no
 
+;---- Mesh ------
+/mesh/check-verbosity 2
+/mesh/repair-improve/repair
+/mesh/repair-improve/repair-face-node-order
+
 ;---- Solver options ----
-/solve/set/limiter no
-/solve/set/flow-warnings no
-/solve/set/reporting-int 5
+/solve/monitors/residual/conv-crit 1e-4 1e-4 1e-4
 /solve/set/under-relax/mom 0.5
 /solve/set/under-relax/press 0.5
 ;; /solve/set/time-step 0.0013888
 /solve/set/time-step 0.0027778
 
-/solve/dual-time-iterate 31000 40
+;; /solve/dual-time-iterate 31000 40
+/solve/dual-time-iterate 30 40
+
+
+;;*********************************************************************
+;;*** Start saving files with greater resolution in fluent format   ***
+;;*** AFTER steady state is reached! Restart sim with new settings! ***
+;;*********************************************************************
+;; /file/auto-save/data-frequency 3
+;; /file/auto-save/root-name Aurelia_v1.1_dev_
+;; /file/auto-save/append-file-name-with time-step 5
+;; /solve/dual-time-iterate 30 40
