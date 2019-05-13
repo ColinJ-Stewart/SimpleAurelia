@@ -125,7 +125,7 @@ double Get_BodyVelocity(Thread *tf, char meshZone, double fx_tot, double *del_x_
 		
 		x_position = Rezero(tf);
 		
-		if( I_AM_NODE_ZERO_P || !PARALLEL)
+		if ((myid == 0) || (myid == 1000000))	
 		{
 			
 			/* Message("\tx_position = %16.12f, ", x_position); */
@@ -340,7 +340,7 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, doubl
 		
 		x_position = Rezero(tf);
 		
-		if( I_AM_NODE_ZERO_P || !PARALLEL)
+		if ((myid == 0) || (myid == 1000000))	
 		{
 			
 			/* Message("\tx_position = %16.12f, ", x_position); */
@@ -467,39 +467,3 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, doubl
 	
 	return vel;
 }
-
-
-/* ---------- Rezero --------------------------------------------- */
-/* Purpose:  															*/
-/* 																		 */
-/* Input:	Thread *tf - face thread for zone which touches axis of symmetry y=0 */
-/* ----------------------------------------------------------------  */
-/* double Rezero (Thread *tf) {
-	double xposition = 0.0;
-	
-	#if !RP_HOST
-	face_t f;
-	int n;
-	Node *v;
-	
-	
-	begin_f_loop(f,tf) 
-	{  
-		if PRINCIPAL_FACE_P(f,tf)
-		{
-			f_node_loop(f,tf,n) 
-			{
-				v = F_NODE(f,tf,n);
-				if (NODE_Y(v) < 1E-10)
-					xposition = NODE_X(v);
-			}
-		}
-	}
-	end_f_loop(f,tf)
-	
-	xposition = PRF_GRSUM1(xposition);  /* = xposition + 0.0 + 0.0 ... + 0.0 */
-	/* #endif
-	
-	return xposition;
- } */
-

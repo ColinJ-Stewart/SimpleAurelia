@@ -205,10 +205,11 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		Print_Zone_Header(meshZone);
 		
 		/* ------------- MEMORY ------------- */ 
-		if ( NewTimeStepForThisZone(meshZone) )
+		if ( NewTimeStep() )
 		{
 			Message("New time step. Reinitializing node memory\n");
-			Reinit_node_mem_int(tf, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
+			Reinit_node_mem_int(tf_ex, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
+			Reinit_node_mem_int(tf_sub, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
 		}
 			
 		/* ------------- TIME  --------------  */	

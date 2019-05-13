@@ -113,19 +113,19 @@ void Calc_Kinematics_and_Move_debug(Thread *tf, char meshZone, double tau, doubl
 	}
 
 	/* calculate the current values of kinematic functions sa, sb, sd  */
-	Message("\tCalculating kinematics (s-functions):  ");
+	/*Message0("\tCalculating kinematics (s-functions):  ");*/
 	Load_sa(tau/PERIOD, sa_ptr);			/* Message("sa = %16.12f\n",sa); */
 	Load_sb(tau/PERIOD, sb_ptr);
 	Load_sd(tau/PERIOD, sd_ptr);
 	Load_sg(tau/PERIOD, sg_ptr);
 	Message("sa = %lf, sb = %lf, sd = %lf, sg = %lf\n",sa, sb, sd, sg);
 	
-	Message("\tCalculating kinematics (a, b, d):  ");
+	/*Message0("\tCalculating kinematics (a, b, d):  ");*/
 	/* calculate the function values for a, b, d  */
 	a = ai*(1-sa*pa);
 	b = bi*(1-sb*pb);
 	d = di*(1-sd*pdd);
-	Message("a = %lf, b = %lf, d = %lf\n",a, b, d);
+	/*Message0("a = %lf, b = %lf, d = %lf\n",a, b, d);*/
 	
 	/* calculate the new position of the margin tip. This is used to find arc length as well as tparm  */
 	tparmTip = acos(d/b);
@@ -142,53 +142,53 @@ void Calc_Kinematics_and_Move_debug(Thread *tf, char meshZone, double tau, doubl
 		xTipOld = xTipUnflexed;
 		yTipOld = yTipUnflexed;
 	}
-	Message("\tReporting tip values: tparmTip = %lf, xTipUnflexed = %lf, yTipUnflexed = %lf \n", tparmTip, xTipUnflexed, yTipUnflexed);
+	Message0("\tReporting tip values: tparmTip = %lf, xTipUnflexed = %lf, yTipUnflexed = %lf \n", tparmTip, xTipUnflexed, yTipUnflexed);
 
 	/* ----- calculate ARC LENGTHS and SORT NODES from apex to margin ----------  */	
-	Message("\tCalculating surface arc length... \n");
+	Message0("\tCalculating surface arc length... \n");
 	/* PRF_GSYNC(); */
 	i = Get_ArcLengths(tf, meshZone, holdNodes, Smax_ptr, SmaxUnflexed_ptr, idArray,
 				coordArray_x_flex, coordArray_y_flex, arclengthArray_unflex);	/* i = number of nodes on mesh zone */
 	
-	Message("\tSumming i's\n");
+	/*Message0("\tSumming i's\n");*/
 	#if PARALLEL
 		total_i = PRF_GISUM1(i);
 	#endif
-	Message("\t(i = %i nodes)\n",i);
+	/*Message0("\t(i = %i nodes)\n",i);*/
 	
 	/*------------ calculate tparm, asub, and bsub ------------ */
 	if (meshZone == 'e') { 
-		Message("\tCalculating initial tparm values... \n");
+		/*Message("\tCalculating initial tparm values... \n");*/
 		Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
 	}
 	else if (meshZone == 's') {
 		if  (N_TIME == 0) 
 		{
-			Message("\tLoading initial a_sub and b_sub values... \n");
+			Message0("\tLoading initial a_sub and b_sub values... \n");
 			Load_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray,
 						coordArray_y_flex, arclengthArray_unflex);
 			Load_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray,
 						coordArray_x_flex, arclengthArray_unflex);
 			
-			Message("\tCalculating initial tparm values... \n");
+			Message0("\tCalculating initial tparm values... \n");
 			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
 		}
 		else 
 		{
 			/* Message("!! tparmTip = %lf, tparmTipOld = %lf!!\n", tparmTip, tparmTipOld);  */
-			Message("\tCalculating tparm... \n");
+			/*Message0("\tCalculating tparm... \n");*/
 			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
 			
-			Message("\tCalculating a_sub... \n");
+			/*Message0("\tCalculating a_sub... \n");*/
 			Get_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray);
 			
-			Message("\tCalculating b_sub... \n");
+			/*Message0("\tCalculating b_sub... \n");*/
 			Get_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray);
 		}
 	}
 	else Error("Incorrect meshZone char");
 	
-	Message("\tFinding flex points... \n");
+	/*Message("\tFinding flex points... \n");*/
 	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
 	
 	Reinit_node_mem_int(tf, 9, 1);		/* Setting N_UDMI slot 9 to 1 (i.e. N_UDMI(v,9) = 1) */
@@ -245,8 +245,8 @@ void Calc_Kinematics_and_Move_debug(Thread *tf, char meshZone, double tau, doubl
 				/* -- Move nodes --  */
 				NODE_X(v) = N_UDMI(v,4);
 				NODE_Y(v) = N_UDMI(v,5);
-				Message("j:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3)); 
-				Message("j:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5)); 
+				/*Message0("j:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3)); 
+				Message0("j:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5)); */
 				/* Message0("j:%i  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
 				
 				/* NODE_POS_UPDATED(v); */
@@ -380,19 +380,19 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	}
 
 	/* calculate the current values of kinematic functions sa, sb, sd  */
-	Message0("\tCalculating kinematics (s-functions):  ");
+	/*Message0("\tCalculating kinematics (s-functions):  ");*/
 	Load_sa(tau/PERIOD, sa_ptr);			/* Message("sa = %16.12f\n",sa); */
 	Load_sb(tau/PERIOD, sb_ptr);
 	Load_sd(tau/PERIOD, sd_ptr);
 	Load_sg(tau/PERIOD, sg_ptr);
-	Message0("sa = %lf, sb = %lf, sd = %lf, sg = %lf\n",sa, sb, sd, sg);
+	/*Message0("sa = %lf, sb = %lf, sd = %lf, sg = %lf\n",sa, sb, sd, sg);*/
 	
-	Message0("\tCalculating kinematics (a, b, d):  ");
+	/*Message0("\tCalculating kinematics (a, b, d):  ");*/
 	/* calculate the function values for a, b, d  */
 	a = ai*(1-sa*pa);
 	b = bi*(1-sb*pb);
 	d = di*(1-sd*pdd);
-	Message0("a = %lf, b = %lf, d = %lf\n",a, b, d);
+	/*Message0("a = %lf, b = %lf, d = %lf\n",a, b, d);*/
 	
 	/* calculate the new position of the margin tip. This is used to find arc length as well as tparm  */
 	tparmTip = acos(d/b);
@@ -426,7 +426,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	
 	/*------------ calculate tparm, asub, and bsub ------------ */
 	if (meshZone == 'e') { 
-		Message0("\tCalculating initial tparm values... \n");
+		/*Message0("\tCalculating initial tparm values... \n");*/
 		Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
 		/* Message("Done.\n"); */
 	}
@@ -447,13 +447,13 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		else 
 		{
 			/* Message("!! tparmTip = %lf, tparmTipOld = %lf!!\n", tparmTip, tparmTipOld);  */
-			Message0("\tCalculating tparm... \n");
+			/*Message0("\tCalculating tparm... \n");*/
 			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
 			
-			Message0("\tCalculating a_sub... \n");
+			/*Message0("\tCalculating a_sub... \n");*/
 			Get_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray);
 			
-			Message0("\tCalculating b_sub... \n");
+			/*Message0("\tCalculating b_sub... \n");*/
 			Get_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray);
 			/* Message("Done.\n"); */
 		}
@@ -466,7 +466,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		/* i1 = Get_FlexPoint(meshZone, holdNodes, i, Smax); */
 		/* Message("\n !!(after) i1 = %i \t i1_ex = %i \t i1_sub = %i \t flexPointFound = %i\n", i1, i1_ex, i1_sub, flexPointFound) */
 	 
-	Message0("\tFinding flex points... \n");
+	/*Message0("\tFinding flex points... \n");*/
 	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
 	
 	/*--- Now that arclength, tparm, flex, etc. have been assigned to --- */
@@ -1120,7 +1120,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 		running_i[thisID] = running_i[lastID] + this_i[lastID]; /* basically, this array holds the zone index of the first mesh node on each partition */
 	}
 	for (N = 0; N < compute_node_count; N++)
-		Message0("\trunning_i[%i] = %i\n", N, running_i[N] );
+		/*Message0("\trunning_i[%i] = %i\n", N, running_i[N] );*/
 	
 	/* 3. Create glabal arrays (i.e. contain info from all mesh nodes, in order, as they would appear
 			if run as a serial process)  */
@@ -1268,9 +1268,10 @@ int NodeIsTip (Node *v)
 		/* if (N_TIME == 0) { */
 			if (r1 < 1e-7 ) 
 			{ 
-				/* Message("\tTIP LOCATION: x = %lf, y = %lf\n", NODE_X(v), NODE_Y(v)); */
-				Message0("\tTIP FOUND @ xold = %f, yold = %f /* xnew = %f, ynew = %f\n", 
-						xold, yold, NODE_X(v), NODE_Y(v));
+				
+				/*Message0("\tTIP FOUND @ xold = %f, yold = %f /* xnew = %f, ynew = %f\n", 
+						xold, yold, NODE_X(v), NODE_Y(v));*/
+				
 				/* N_UDMI(v,15) = -1.0; */
 				return 1;
 			}
@@ -1980,12 +1981,8 @@ void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
 
 
 
-/*---------- Store_OldKinematicVars ---------------------------
-Purpose: 
-
-Input:	
-
-Output:
+/**---------- Store_OldKinematicVars ---------------------------
+* TODO: Clean this up and make sure this isn't part of the problem w/ running on n>2 nodes
 ---------------------------------------------------------------- */
 void Store_OldKinematicVars(void)
 {
@@ -2000,71 +1997,6 @@ void Store_OldKinematicVars(void)
 	int *tip_arr, *iworkN;
 	
 	#if PARALLEL
-	
-	/** Complex tip coord sync **/
-	/* allocate dynamic memory array  */ 
-	/* tip_arr = (int *)malloc(sizeof(int)*compute_node_count); */
-	/* if (tip_arr == NULL) */
-		/* Error("malloc failed!\n"); */
-	
-	/* iworkN = (int *)malloc(sizeof(int)*compute_node_count);	 */
-	/* if (iworkN == NULL) */
-		/* Error("malloc failed!\n"); */
-	
-	/* initialize arrays  */ 
-	/* for (N = 0; N < compute_node_count; N++) */
-	/* { */
-		/* tip_arr[N] = 0; */
-		/* iworkN[N] = 0; */
-	/* } */
-	
-	/* fill and sync tip flag array  */ 
-	/* tip_arr[myid] = iHaveTip; */
-	/* PRF_GISUM(tip_arr, compute_node_count, iworkN); */
-	
-	/* find the first node that has the tip  */ 
-	/* N = 0; */
-	/* while (tipScan == 0) tipScan = tip_arr[N++]; */
-	
-	/* send tip coords from that node (nodeN --> node0 --> all_compute_nodes )  */ 
-	/* if (myid == N) */
-	/* { */
-		/* send vars to node0  */ 
-		/* PRF_CSEND_REAL(node_zero, &xTip, 1, myid); */
-		/* PRF_CSEND_REAL(node_zero, &yTip, 1, myid); */
-		/* PRF_CSEND_REAL(node_zero, &xTipUnflexed, 1, myid); */
-		/* PRF_CSEND_REAL(node_zero, &yTipUnflexed, 1, myid); */
-	/* } */
-	/* else if (I_AM_NODE_ZERO_P) */
-	/* { */
-		/* receive vars from nodeN  */ 
-		/* PRF_CRECV_REAL(N, &xTip, 1, N); */
-		/* PRF_CRECV_REAL(N, &yTip, 1, N); */
-		/* PRF_CRECV_REAL(N, &xTipUnflexed, 1, N); */
-		/* PRF_CRECV_REAL(N, &yTipUnflexed, 1, N); */
-		
-		/* send to all other compute nodes  */ 
-		/* compute_node_loop_not_zero(i) */
-		/* { */
-			/* PRF_CSEND_REAL(i, &xTip, 1, myid); */
-			/* PRF_CSEND_REAL(i, &yTip, 1, myid); */
-			/* PRF_CSEND_REAL(i, &xTipUnflexed, 1, myid); */
-			/* PRF_CSEND_REAL(i, &yTipUnflexed, 1, myid);		 */
-		/* } */
-	/* } */
-	/* else */
-	/* { */
-		/* receive vars from node0  */ 
-		/* PRF_CRECV_REAL(node_zero, &xTip, 1, node_zero); */
-		/* PRF_CRECV_REAL(node_zero, &yTip, 1, node_zero); */
-		/* PRF_CRECV_REAL(node_zero, &xTipUnflexed, 1, node_zero); */
-		/* PRF_CRECV_REAL(node_zero, &yTipUnflexed, 1, node_zero); */
-	/* } */
-	
-	/* de-allocate memory  */ 
-	/* free(tip_arr); */
-	/* free(iworkN); */
-	
 	
 	/** Simple tip coord sync **/
 	/* ----------------------  */

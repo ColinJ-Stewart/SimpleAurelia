@@ -22,6 +22,5 @@ double Get_Mass(void);
 double Get_Vel_At_End(char meshZone);
 double Get_Del_At_End(char meshZone);
 double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, double *del_x_ptr);
-/* double Rezero (Thread *tf); */
 
 #endif
