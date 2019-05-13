@@ -936,12 +936,12 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 					if (meshZone == 'e') 
 					{
 						N_UDMI(v,6) = Rstar[1]; /* Store initial distance to apex  */
-						/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	 */
+						Message("i:%i  x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	
 					}
 					else if (meshZone == 's') 
 					{
 						N_UDMI(v,7) = Rstar[1]; /* Store initial distance to apex  */
-						/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v)); */
+						Message("i:%i  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v));
 					}
 					
 					i++;
@@ -1390,8 +1390,8 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 					
 					/** diagnostics * */
-					/* Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", */
-						/* j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
+					Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 
+						j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); 
 				}
 			}
 		}
@@ -1566,11 +1566,8 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 							N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 							
 							/* diagnostics  */
-							if (j<10)
-							{
-								Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n",
-									j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
-							}
+							Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n",
+								j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 						}
 						
 						/* tparm calc LOOP 2 -- check tparm  */
