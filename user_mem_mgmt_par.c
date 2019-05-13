@@ -39,7 +39,7 @@ int Init_node_mem(Thread *tf)
 				N_UDMI(v,12) = NODE_X(v); /* node's UNFLEXED x position at last time step */	
 				N_UDMI(v,13) = NODE_Y(v); /* node's UNFLEXED y position at last time step */
 				N_UDMI(v,14) = '\0';	/* UNFLEXED arc length to node starting from apex */			
-				/* N_UDMI(v,15) = 0;		 Tip node flag (previously indicated using N_UDMI(v,1) = -1.0) */	
+				N_UDMI(v,15) = 0.0;		
 			}
 		}
 	}

@@ -16,6 +16,9 @@
 ;---- Boundary Conditions ------
 /def/b-c/wall wall_mid y motion-bc-stationary y shear-bc-spec-shear n 0 n 0
 
+;---- Node memory control -----
+/def/user-defined/user-defined-node-memory 16
+
 ;---- Dyn mesh ------
 ;; /def/dyn-mesh/dynamic-mesh? y n n n n
 ;; /def/dyn-mesh/zones/delete exum
@@ -94,7 +97,8 @@
 /solve/set/time-step 0.0027778
 
 ;; /solve/dual-time-iterate 31000 40
-/solve/dual-time-iterate 9400 40
+;; /solve/dual-time-iterate 9400 40
+;; /solve/dual-time-iterate 5 40
 
 
 ;;*********************************************************************

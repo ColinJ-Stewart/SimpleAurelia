@@ -523,6 +523,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				/* if (NodeIsTip(v)) */
 				if ( NodeIsTip(v) && (meshZone == 'e') )
 				{
+					Message("Exum found+stored tip node! (526)\n");
 					xTip_temp = N_UDMI(v,4);
 					yTip_temp = N_UDMI(v,5);
 					xTipUnflexed_temp = N_UDMI(v,12);
@@ -936,12 +937,12 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 					if (meshZone == 'e') 
 					{
 						N_UDMI(v,6) = Rstar[1]; /* Store initial distance to apex  */
-						Message("i:%i  x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	
+						/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	 */
 					}
 					else if (meshZone == 's') 
 					{
 						N_UDMI(v,7) = Rstar[1]; /* Store initial distance to apex  */
-						Message("i:%i  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v));
+						/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v)); */
 					}
 					
 					i++;
@@ -1370,7 +1371,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v,9) = 1;				/* old node flag (I guess assume that it is never remeshed?) */
 			
 			/** diagnostics * */
-			/* Message("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
+			Message("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1482,7 +1483,15 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* calculate the new tparm value  */
 					/* tparm_ex[j] = tparm_old_Arr[j] + (double)j/(nNodes-1)*(tparmTip - tparmTipOld);  */
-					tparm_ex[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+					if (N_TIME == 1)
+					{
+						tparm_ex[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+						N_UDMI(v,15) = Si/SmaxUnflexed;
+					}
+					else
+					{
+						tparm_ex[j] = tparm_old_Arr[j] + N_UDMI(v,15) * (tparmTip - tparmTipOld); 
+					}
 					N_UDMI(v,10) = tparm_ex[j];
 					
 					/* old codes */
@@ -1491,7 +1500,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* diagnostics  */
 					/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",j, NODE_X(v), NODE_X(v)-b, b); */
-					/* Message("j:%i  Snorm = %lf, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Sunflexedj/SmaxUnflexed, tparm_ex[j], tparm_old_j, NODE_X(v), NODE_Y(v)); */
+					Message("j:%i  Snorm = %lf, tparmTip = %10.10f, tparmTipOld = %10.10f, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Si/SmaxUnflexed, tparmTip, tparmTipOld, tparm_ex[j], tparm_old_Arr[j], NODE_X(v), NODE_Y(v));
 					/**DEBUG* */
 					/* if (N_TIME >= 63) */
 						/* Message("j:%i  tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
@@ -1676,7 +1685,16 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					}
 					
 					/* calculate the new tparm value  */
-					tparm_sub[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+					if (N_TIME == 1)
+					{
+						tparm_sub[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+						N_UDMI(v,15) = Si/SmaxUnflexed;
+					}
+					else
+					{
+						tparm_sub[j] = tparm_old_Arr[j] + N_UDMI(v,15) * (tparmTip - tparmTipOld); 
+					}
+					
 					/* tparm_sub[j] = tparm_old_Arr[j] + (double)j/(nNodes-1)*(tparmTip - tparmTipOld); */
 					N_UDMI(v,10) = tparm_sub[j];
 					
