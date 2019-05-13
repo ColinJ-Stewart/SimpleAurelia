@@ -337,6 +337,10 @@ int Get_ArcLengths(Thread *tf, char meshZone, Node *holdNodes[],
 				arc lengths are calculated. Other ordered arrays of node info are also avaible as results 
 				(coordinates, radial distance, local arc lengths) but most of this info is stored at each node
 				via N_UDMI and can be accessed using the idArray as a directory/lookup table  */
+				/**
+				 * ! This is one of the bugged parallel funcs!
+				 * TODO: FIX THIS FUNCTION TO WORK WHEN A PROCESSOR HAS GROUPS OF NODES THAT AREN'T ALL NEXT TO EACH OTHER 
+				 **/
 			Get_ParArcLengths(meshZone, holdNodes, i, Smax_ptr, SmaxUnflexed_ptr, idArray,
 								coordArray_x_flex, coordArray_y_flex, arclengthArray_unflex);	
 		#endif
@@ -688,9 +692,10 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 
 
 /*---------- Get_ParArcLengths -----------------------------
-Purpose: 
-
-Input:	FILE *stream	-	File stream
+/**
+ * ! This is one of the bugged parallel funcs!
+ * TODO: FIX THIS FUNCTION TO WORK WHEN A PROCESSOR HAS GROUPS OF NODES THAT AREN'T ALL NEXT TO EACH OTHER 
+ **/
 ---------------------------------------------------------------- */
 void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i, 
 						double *Smax_ptr, double *SmaxUnflexed_ptr, int idArray[][2],
@@ -723,13 +728,13 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 
 	/* calcaulte initial counters, misc variables  */
 	/* Message("\tGet_ParArcLengths::calc initial counters, misc var\n"); */
-	total_i = PRF_GISUM1(i);
-	if (i > 0) 
+	if (i > 0) 					/* if this processor's partition has any mesh nodes from this zone */
 		iHaveNodes = 1;
-	totalHaveNodes = PRF_GISUM1(iHaveNodes);
+	totalHaveNodes = PRF_GISUM1(iHaveNodes);	/* how many processors have mesh nodes from this zone */
+	total_i = PRF_GISUM1(i);	/* total number of nodes documented for the mesh zone */
 
-	/* Message("\tGet_ParArcLengths::dynamically allocating memory\n"); */
 	/* dynamically allocate memory for arrays that need to be length of compute_node_count  */
+	/* Message("\tGet_ParArcLengths::dynamically allocating memory\n"); */	
 	this_i = (int *)malloc(sizeof(int)*compute_node_count);	/* allocate  */
 	if (this_i == NULL)
 		Error("malloc failed!\n");
@@ -770,10 +775,11 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 		dworkN[N] = 0.0;
 	}
 	
+	/* sync an array that holds the # of mesh nodes contained on each processor */
 	this_i[myid] = i;
-	PRF_GISUM(this_i, compute_node_count, iworkN);
+	PRF_GISUM(this_i, compute_node_count, iworkN);	 
 	
-	
+
 	/* initialize arrays that contain one value per COMPUTATION NODE THAT CONTAINS MESH NODES  */
 	for (N = 0; N < totalHaveNodes; N++)
 	{
