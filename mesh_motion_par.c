@@ -691,11 +691,10 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 }
 
 
-/*---------- Get_ParArcLengths -----------------------------
-/**
+/**---------- Get_ParArcLengths -----------------------------
  * ! This is one of the bugged parallel funcs!
  * TODO: FIX THIS FUNCTION TO WORK WHEN A PROCESSOR HAS GROUPS OF NODES THAT AREN'T ALL NEXT TO EACH OTHER 
- **/
+ *
 ---------------------------------------------------------------- */
 void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i, 
 						double *Smax_ptr, double *SmaxUnflexed_ptr, int idArray[][2],
@@ -725,6 +724,18 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	double thisDist_flex, thisArcDist_flex;
 	double thisDist_unflex, thisArcDist_unflex;
 	int rows, cols;
+	double *masterNodeIndex;
+	int dist_mem_slot;
+	int i_start;
+
+	if (meshZone == 'e')
+	{
+		dist_mem_slot = 6;
+	}
+	else
+	{
+		dist_mem_slot = 7;
+	}
 
 	/* calcaulte initial counters, misc variables  */
 	/* Message("\tGet_ParArcLengths::calc initial counters, misc var\n"); */
@@ -804,19 +815,74 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 		arclengthArray_unflex[j] = 0.0;
 		iworkj[j] = 0.0;
 		dworkj[j] = 0.0;
+
+		/* 2D initialization of all elements  */
+		for (M = 0; M < 5; M++)
+			masterNodeIndex[j*2 + M] = 0.0;
 	}
 
-	
+	/**
+	 * TODO: 1. populate masterNodeIndex w/ the following columns:
+	 * TODO: dist, NODE_X, NODE_Y, myid, holdNodes index
+	 * !CAN'T SYNC 2D ARRAYS or ARRAYS! Limitation of Fluent...
+	 **/
+	i_start = 0
+	if (iHaveNodes)
+	{
+		for (N = 0; N < myid; N++)
+		{
+			i_start = i_start + this_i[N];
+		}
+
+		for (j = i_start; j < i_start + i; j++)
+		{
+			j_lcl = j - i_start;
+			masterArr_dist[j*2 + 0] = N_UDMI(holdNodes[j_lcl], dist_mem_slot);
+			masterArr_x_un[j*2 + 1] = NODE_X(holdNodes[j_lcl]);
+			masterArr_y_un[j*2 + 2] = NODE_Y(holdNodes[j_lcl]);
+			masterArr_myid[j*2 + 3] = (double) myid;
+			masterArr_jlcl[j*2 + 4] = (double) j_lcl;
+		}
+	}
+	PRF_GRSUM(masterArr_dist, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_x_un, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_y_un, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_myid, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_jlcl, MAX_NODES, dworkj);
+
+
+	masterNodeIndex[j*2 + 0] = N_UDMI(holdNodes[j_lcl], dist_mem_slot);
+	masterNodeIndex[j*2 + 1] = NODE_X(holdNodes[j_lcl]);
+	masterNodeIndex[j*2 + 2] = NODE_Y(holdNodes[j_lcl]);
+	masterNodeIndex[j*2 + 3] = (double) myid;
+	masterNodeIndex[j*2 + 4] = (double) j_lcl;
+
+
+
+
+
+
+
+	/**
+	 * TODO: 2. sort by dist using 2D bubble sort
+	 **/
+
+
+
+
+
+
+
+
+
+
 	/* 1. Order the computational nodes (that hold mesh nodes in this zone) from apex to tip,
 			ASSUMING ONLY CONTIGUOUS BLOCKS OF MESH NODES ON EACH COMPUTATIONAL NODE!  */
 	
 	/* 1a. get the radial distance of the first mesh node on each comp node  */
 	if (iHaveNodes)
 	{
-		if (meshZone == 'e')
-			firstDist[myid] = N_UDMI(holdNodes[0], 6);
-		else
-			firstDist[myid] = N_UDMI(holdNodes[0], 7);
+		firstDist[myid] = N_UDMI(holdNodes[0], dist_mem_slot);
 	}
 	PRF_GRSUM(firstDist, compute_node_count, dworkN);
 	
@@ -878,10 +944,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 				/* myid, running_i[myid] + j, idArray[running_i[myid] + j],j); */
 			
 			/* 3c. Create corresponding array of distances  */
-			if (meshZone == 'e')
-				distArray[running_i[myid] + j] = N_UDMI(holdNodes[j],6);
-			else
-				distArray[running_i[myid] + j] = N_UDMI(holdNodes[j],7);
+			distArray[running_i[myid] + j] = N_UDMI(holdNodes[j],dist_mem_slot);
 			
 			/* 3d. Create corresponding array of (x,y) coordinates  */
 			if ( NodeIsTip(holdNodes[j]) )
