@@ -143,12 +143,12 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		xTipOld = xTipUnflexed;
 		yTipOld = yTipUnflexed;
 	}
-	Message0("\tReporting tip values: tparmTip = %lf, xTip = %lf, yTip = %lf \n", tparmTip, xTipUnflexed, yTipUnflexed);
+	Message0("\tReporting tip values: xTipUnflexed = %lf, yTipUnflexed = %lf, tparmTip = %lf \n", xTipUnflexed, yTipUnflexed, tparmTip);
+	Message0("\tReporting tip values: xTipUnflexedOld = %lf, yTipUnflexedOld = %lf \n", xTipUnflexedOld, yTipUnflexedOld);
 	
 	
 	/* ----- calculate ARC LENGTHS and SORT NODES from apex to margin ----------  */		
 	Message0("\tCalculating surface arc length... \n");
-	/* PRF_GSYNC(); */
 	i = Get_ArcLengths(tf, meshZone, holdNodes, SmaxUnflexed_ptr, idArray, arclengthArray_unflex);	/* i = number of nodes on mesh zone */
 	#if PARALLEL
 		total_i = PRF_GISUM1(i);
@@ -159,9 +159,9 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	
 	/*------------ calculate tparm, asub, and bsub ------------ */
 	if (meshZone == 'e') { 
-		/*Message0("\tCalculating initial tparm values... \n");*/
+		Message0("\tCalculating initial tparm values... \n");
 		Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
-		/* Message("Done.\n"); */
+		Message0("\tDone.\n");
 	}
 	else if (meshZone == 's') {
 		if  (N_TIME == 0) 
@@ -191,7 +191,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	else Error("Incorrect meshZone char");
 	
 	/*------------ find flex point (node) ------------ */	 
-	/*Message0("\tFinding flex points... \n");*/
+	Message0("\tFinding flex points... \n");
 	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
 	
 	/*--- Now that arclength, tparm, flex, etc. have been assigned to --- */
@@ -261,12 +261,9 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				/** DEBUG * */
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
-				if ((myid == 1) && (meshZone == 's'))
-				{
-					/* Message("\tj:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("\tj:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5)); */
-					/* Message("\tj:%i  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
-				}
+				Message("\tj:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3));
+				Message("\tj:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5));
+				Message("\tj:%i  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3));
 				/* } */
 				NODE_POS_UPDATED(v);
 			}
@@ -298,24 +295,26 @@ Input:	Thread *tf			-
 int Get_ArcLengths(Thread *tf, char meshZone, Node *holdNodes[], 
 		double *SmaxUnflexed_ptr, int idArray[][2], double arclengthArray_unflex[])		
 {
+	Message0("\tGet_ArcLengths::first line\n");
 	int i = 0;
 
 	#if !RP_HOST
+		double xApex;
 		int j, n;
-		double dist, xApex;
-		face_t f;
+		double dist;
 		Node *v, *w;
 		
 		/* Message("\tGet_ArcLengths::Rezero\n"); */
+		Message0("\tGet_ArcLengths::Rezero\n");
 		xApex = Rezero(tf);
 		
 		/* Loop over all mesh nodes on this computational node, put them in holdNodes array, 
 			and store distance to tip if first iteration of sim  */
-		/* Message("\tGet_ArcLengths::Get_NodeDistance\n"); */
+		Message0("\tGet_ArcLengths::Get_NodeDistance\n");
 		i = Get_NodeDistances(tf, meshZone, holdNodes, xApex);
 		
-		/* Message("\tGet_ArcLengths::quickSort\n"); */
 		/* sort mesh nodes and store in holdNodes[0:i] where i is local to this computational node  */
+		Message0("\tGet_ArcLengths::quickSort\n");
 		quickSort(holdNodes, 0, i-1, meshZone); 
 		
 		
@@ -328,7 +327,9 @@ int Get_ArcLengths(Thread *tf, char meshZone, Node *holdNodes[],
 				 * ! This is one of the bugged parallel funcs!
 				 * TODO: FIX THIS FUNCTION TO WORK WHEN A PROCESSOR HAS GROUPS OF NODES THAT AREN'T ALL NEXT TO EACH OTHER 
 				 **/
+			Message0("\tGet_ArcLengths::Get_ParArcLengths\n");
 			Get_ParArcLengths(meshZone, holdNodes, i, SmaxUnflexed_ptr, idArray, arclengthArray_unflex);	
+			Message0("\tGet_ArcLengths::Get_ParArcLengths -- complete\n");
 		#endif
 
 		
@@ -599,8 +600,7 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 		p[0] = 0.5*(xApex + xTipUnflexedOld);
 		p[1] = 0.5*(0.0 + yTipUnflexedOld);		/* yApex is always 0.0 b/c axisymmetry  */
 		
-		/* Message("p[0] = %f, p[1] = %f, xTipUnflexedOld = %f, yTipUnflexedOld = %f\n",  */
-				/* p[0], p[1], xTipUnflexedOld, yTipUnflexedOld); */
+		Message0("\t\t p[0] = %f, p[1] = %f, xTipUnflexedOld = %f, yTipUnflexedOld = %f\n", p[0], p[1], xTipUnflexedOld, yTipUnflexedOld); 
 		
 		begin_f_loop(f,tf) {  
 			if PRINCIPAL_FACE_P(f,tf) {
@@ -671,7 +671,7 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 		}
 		end_f_loop(f,tf)
 	#endif
-	
+	Message0("\t\t i = %i\n", i);
 	return i;
 }
 
@@ -757,7 +757,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* sync an array that holds the # of mesh nodes contained on each processor */
 	this_i[myid] = i;
 	PRF_GISUM(this_i, compute_node_count, iworkN);	 
-	
+	Message0("\t\t I am Node%i and I have %i mesh nodes of mesh zone %c \n",myid, i, meshZone);
 	
 	/* initialize arrays that contain one value per MESH node */
 	for (j = 0; j < MAX_NODES; j++)
@@ -888,7 +888,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* Debug */
 	for (j = 0; j < total_i; j++)
 	{
-		Message("arclengthArray_unflex[%i] = %10.10f\n", j, arclengthArray_unflex[j] ); 
+		Message0("\t\t arclengthArray_unflex[%i] = %10.10f (dist = %lf, x = %lf, y = %lf)\n", j, arclengthArray_unflex[j], masterArr_dist[j], masterArr_x_un[j], masterArr_y_un[j] ); 
 	}
 	
 	/**
@@ -897,7 +897,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 
 	/* Last index in global array is the tip node. Get SmaxUnflexed  */
 	*SmaxUnflexed_ptr = arclengthArray_unflex[total_i - 1];
-	
+	Message0("\t\t Smaxunflexed = %lf\n", *SmaxUnflexed_ptr);
 
 	/* deallocate dynamic memory  */
 	free(this_i);
@@ -1029,7 +1029,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v,9) = 1;				/* old node flag (I guess assume that it is never remeshed?) */
 			
 			/** diagnostics * */
-			/* Message("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
+			Message0("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1049,8 +1049,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 					
 					/** diagnostics * */
-					/* Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", */
-						/* j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
+					Message0("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 				}
 			}
 		}
@@ -1091,7 +1090,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* 3a. Handle new nodes added via remeshing/adaption  */
 					if (!oldNode_Arr[j]) {	
-						Message("\tNew ex node detected\n");
+						Message0("\tNew ex node detected\n");
 						newNodeFlag = 1;
 						
 						/* new node added from remeshing, thus has no tparm_sub_old value! Must estimate it.  */
@@ -1135,7 +1134,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 						
 						tparm_old_Arr[j] = tparm_old_Arr[iL] + (double)(j-iL)/(iR-iL) * (tparm_old_Arr[iR] - tparm_old_Arr[iL]);
 						N_UDMI(v,8) = tparm_old_Arr[j];
-						Message("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
+						Message0("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
 						
 					}
 					
@@ -1186,7 +1185,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v, 9) = 1;				/* old node flag */
 			
 			/* diagnostics  */
-			/* Message("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(holdNodes[0],10), N_UDMI(holdNodes[0],8), NODE_X(holdNodes[0]), NODE_Y(holdNodes[0])); */
+			Message0("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(holdNodes[0],10), N_UDMI(holdNodes[0],8), NODE_X(holdNodes[0]), NODE_Y(holdNodes[0]));
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1222,7 +1221,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 								
 								/* old method  */
 								/* interp tparm method (NEEDS TO UPDATE B_SUB TOO!)  */
-								Message("Invalid b_sub value at j = %i. Interpolating tparm_sub from neighbors.\n",j);
+								Message0("Invalid b_sub value at j = %i. Interpolating tparm_sub from neighbors.\n",j);
 								tparm_sub[j] = M_PI + (double)j/(j+1) * (tparm_sub[j+1]-M_PI);	/* assuming this can only happen near j=0 (i.e. apex node) */
 								/* dif = (tparm_sub[j]-tparmTip)/(tparm_sub[0]-tparmTip) * thickness; */
 								/* b_sub[j] = b - dif; */
@@ -1234,11 +1233,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 							N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 							
 							/* diagnostics  */
-							if (j<10)
-							{
-								Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n",
-									j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
-							}
+							Message0("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 						}
 						
 						/* tparm calc LOOP 2 -- check tparm  */
@@ -1298,7 +1293,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* 3a. Handle new nodes added via remeshing/adaption  */
 					if (!oldNode_Arr[j]) {
-						Message("New sub node detected\n");
+						Message0("New sub node detected\n");
 						newNodeFlag = 1;
 						
 						/* new node added from remeshing, thus has no tparm_sub_old value! Must estimate it.  */
@@ -1342,7 +1337,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 						
 						tparm_old_Arr[j] = tparm_old_Arr[iL] + (double)(j-iL)/(iR-iL) * (tparm_old_Arr[iR] - tparm_old_Arr[iL]);
 						N_UDMI(v,8) = tparm_old_Arr[j];
-						Message("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
+						Message0("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
 					
 					}
 					
