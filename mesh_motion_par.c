@@ -261,9 +261,9 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				/** DEBUG * */
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
-				Message("\tj:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3));
-				Message("\tj:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5));
-				Message("\tj:%i  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3));
+				/* Message("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid);
+				Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid);
+				Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */
 				/* } */
 				NODE_POS_UPDATED(v);
 			}
@@ -655,12 +655,12 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 						if (meshZone == 'e') 
 						{
 							N_UDMI(v,6) = Rstar[1]; /* Store initial distance to apex  */
-							/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	 */
+							/* Message0("holdNodes[%i]: x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	 */
 						}
 						else if (meshZone == 's') 
 						{
 							N_UDMI(v,7) = Rstar[1]; /* Store initial distance to apex  */
-							/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v)); */
+							/* Message0("holdNodes[%i]:  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v)); */
 						}
 						
 						i++;
@@ -760,6 +760,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	Message0("\t\t I am Node%i and I have %i mesh nodes of mesh zone %c \n",myid, i, meshZone);
 	
 	/* initialize arrays that contain one value per MESH node */
+	Message0("\t\t Initializing arrays\n");
 	for (j = 0; j < MAX_NODES; j++)
 	{
 		idArray[j][0] = 0;
@@ -791,6 +792,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	 * TODO: dist, NODE_X, NODE_Y, myid, holdNodes index
 	 * !CAN'T SYNC 2D ARRAYS or ARRAYS! Limitation of Fluent...
 	 **/
+	Message0("\t\t Populating masterArr vectors\n");
 	i_start = 0;
 	if (iHaveNodes)
 	{
@@ -812,6 +814,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 
 			if ( NodeIsTip(holdNodes[j_lcl]) )
 			{
+				/* Message0("\t\t Adding tip to masterArr! N_UDMI(v,6) = %lf, N_UDMI(v,7) = %lf\n",N_UDMI(holdNodes[j_lcl],6), N_UDMI(holdNodes[j_lcl],7)); */
 				masterArr_x_un[j] = xTipUnflexedOld;
 				masterArr_y_un[j] = yTipUnflexedOld;
 				masterArr_x_fl[j] = xTipOld;
@@ -819,6 +822,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 			}
 		}
 	}
+	Message0("\t\t Syncing masterArr vectors\n");
 	PRF_GRSUM(masterArr_dist, MAX_NODES, dworkj);
 	PRF_GRSUM(masterArr_x_un, MAX_NODES, dworkj);
 	PRF_GRSUM(masterArr_y_un, MAX_NODES, dworkj);
@@ -828,27 +832,41 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	PRF_GRSUM(masterArr_jlcl, MAX_NODES, dworkj);
 
 	/* assemble vectors into one master array for sorting */
+	Message0("\t\t Assembling masterArr \n");
+	cols = 7;
 	for (j = 0; j < total_i; j++)
 	{	
-		masterNodeIndex[j*2 + 0] = masterArr_dist[j];
-		masterNodeIndex[j*2 + 1] = masterArr_x_un[j];
-		masterNodeIndex[j*2 + 2] = masterArr_y_un[j];
-		masterNodeIndex[j*2 + 3] = masterArr_x_fl[j];
-		masterNodeIndex[j*2 + 4] = masterArr_y_fl[j];
-		masterNodeIndex[j*2 + 5] = masterArr_myid[j];
-		masterNodeIndex[j*2 + 6] = masterArr_jlcl[j];
+		masterNodeIndex[j*cols + 0] = masterArr_dist[j];
+		masterNodeIndex[j*cols + 1] = masterArr_x_un[j];
+		masterNodeIndex[j*cols + 2] = masterArr_y_un[j];
+		masterNodeIndex[j*cols + 3] = masterArr_x_fl[j];
+		masterNodeIndex[j*cols + 4] = masterArr_y_fl[j];
+		masterNodeIndex[j*cols + 5] = masterArr_myid[j];
+		masterNodeIndex[j*cols + 6] = masterArr_jlcl[j];
+	}
+
+	/**
+	 * TODO: 2. sort masterNodeIndex by dist using 2D bubble sort and reorder the vectors
+	 **/
+	/* sort the 2D array so the order goes from apex mesh nodes to tip mesh nodes 
+			(i.e. ascending radial distance)  */
+	Message0("\t\t Sorting masterArr \n");
+	bubbleSort_double2D(masterNodeIndex, total_i, cols, 'a'); 
+
+	Message0("\t\t Breaking masterArr back into vectors \n");
+	for (j = 0; j < total_i; j++)
+	{	
+		masterArr_dist[j] = masterNodeIndex[j*cols + 0];
+		masterArr_x_un[j] = masterNodeIndex[j*cols + 1];
+		masterArr_y_un[j] = masterNodeIndex[j*cols + 2];
+		masterArr_x_fl[j] = masterNodeIndex[j*cols + 3];
+		masterArr_y_fl[j] = masterNodeIndex[j*cols + 4];
+		masterArr_myid[j] = masterNodeIndex[j*cols + 5];
+		masterArr_jlcl[j] = masterNodeIndex[j*cols + 6];
 
 		idArray[j][0] = (int) masterArr_myid[j];
 		idArray[j][1] = (int) masterArr_jlcl[j];
 	}
-
-	/**
-	 * TODO: 2. sort masterNodeIndex by dist using 2D bubble sort
-	 **/
-	/* sort the 2D array so the order goes from apex mesh nodes to tip mesh nodes 
-			(i.e. ascending radial distance)  */
-
-	bubbleSort_double2D(masterNodeIndex, total_i, 5, 'a'); 
 
 	/**
 	 * TODO: 3. Calc flexed and unflexed arclengths
@@ -861,7 +879,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	 * ? arclengthArray_unflex[] -- YES (by Load_a/b_sub)
 	 * ? arclengthArray_flex[]-->N_UDMI(v, 1) -- NO? But keeping it for now for simplicity
 	 **/
-
+	Message0("\t\t Calculating arc lengths \n");
 	for (j = 1; j < total_i; j++)
 	{	
 		/* Unflexed  */

@@ -7,7 +7,7 @@
 ;; /file/auto-save/retain-most-recent-files yes
 ;; /file/auto-save/max-files 5
 ;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-/file/transient-export/ensight-g-t/ ES_Aur_v1.1dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 12 y
+/file/transient-export/ensight-g-t/ ES_Aur_v1.1dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
 /solve/set/limiter-warnings? no
 /solve/set/flow-warnings? no
 /solve/set/reporting-interval 100
@@ -15,9 +15,6 @@
 
 ;---- Boundary Conditions ------
 /def/b-c/wall wall_mid y motion-bc-stationary y shear-bc-spec-shear n 0 n 0
-
-;---- Node Memory control ------
-/def/user-defined/user-defined-node-memory 16
 
 ;---- Dyn mesh ------
 ;; /def/dyn-mesh/dynamic-mesh? y n n n n
@@ -66,6 +63,9 @@
 ;---- Initialize flow ----
 /solve/initialize/initialize-flow
 
+;---- Node Memory control ------
+;; /def/user-defined/user-defined-node-memory 16
+
 ;---- Adaptation control -----
 /adapt/set/coarsen-mesh? no
 /adapt/set/refine-mesh? no
@@ -73,11 +73,11 @@
 /adapt/free-registers yes
 
 ;---- Parallel settings -----
-;; /par/part/auto/across-zones no
+/par/part/auto/across-zones no
 ;; /par/part/set/origin 0 0.2
 /par/part/set/merge yes 3
 /par/part/set/smooth yes 3
-/par/part/method cartesian-y 2
+/par/part/method cartesian-y 4
 /par/part/use-stored-part
 /par/part/auto/method cartesian-y
 ;; /par/load-balance/dynamic-mesh y n 10 5
@@ -98,7 +98,7 @@
 
 ;; /solve/dual-time-iterate 31000 40
 ;; /solve/dual-time-iterate 5 40
-/solve/dual-time-iterate 100 40
+/solve/dual-time-iterate 1000 40
 
 
 ;;*********************************************************************
