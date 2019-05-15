@@ -891,17 +891,30 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 		thisArcDist_flex = sqrt( SQR(masterArr_x_fl[j] - masterArr_x_fl[j-1]) + 
 								SQR(masterArr_y_fl[j] - masterArr_y_fl[j-1]) );
 		arclengthArray_flex[j] = arclengthArray_flex[j-1] + thisArcDist_flex;
-		
-		
-		/* save locally */
-		thisID = masterArr_myid[j];
+	}
+
+	Message0("\t\t Printing out idArray:\n");
+	for (j = 1; j < total_i; j++)
+	{	
+		thisID = (int) masterArr_myid[j];
+		j_lcl = (int) masterArr_jlcl[j];
+
+		Message0("\t\t j:%i  idArray = [%i][%i]  dist = %lf\n", j, thisID, j_lcl, masterArr_dist[j]);
+	}
+
+	Message0("\t\t Saving locally \n");
+	/* save locally */
+	for (j = 1; j < total_i; j++)
+	{	
+		thisID = (int) masterArr_myid[j];
+		j_lcl =  (int) masterArr_jlcl[j];
 		if (myid == thisID)
 		{
-			j_lcl = j - i_start;
 			N_UDMI(holdNodes[j_lcl], 1) = arclengthArray_flex[j];
 			N_UDMI(holdNodes[j_lcl], 14) = arclengthArray_unflex[j];
 		}
 	}
+
 
 	/* Debug */
 	for (j = 0; j < total_i; j++)
@@ -1704,7 +1717,7 @@ void Store_OldKinematicVars(void)
 		yTipUnflexed = PRF_GRSUM1(yTipUnflexed_temp); 	/* = yTipUnflexed_temp + 0.0 + 0.0 ... + 0.0 */
 	}
 	else
-		Error("Tip either found on >1 node OR it was not found not at all!");
+		Error("Tip either found on >1 node OR it was not found not at all! (iHaveTip = %i, PRF_GRSUM1(iHaveTip) = %i)", iHaveTip, PRF_GRSUM1(iHaveTip));
 	
 	iHaveTip = 0;
 	
