@@ -484,7 +484,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		if (myid == thisID)
 		{
 			v = holdNodes[localj];
-			if (NODE_POS_NEED_UPDATE(v))	
+			if (NODE_POS_NEED_UPDATE(v) || (NODE_Y(v) <= 1e-7))
 			{	
 				/* store old position  */
 				N_UDMI(v,2) = NODE_X(v); 	/* xold */
@@ -558,6 +558,61 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	#endif
 }
 
+/*---------- Move_Nodes_to_Stored_Positions ----------------------------
+Purpose: Moves the nodes according to kinematic and dynamic motions
+calculated in calcMeshMovement()
+
+Input:	holdNodes	-	array of sorted nodes, from apex to margin
+		i 			-	total number of nodes in this zone
+		i1			-	index of flex point node in holdNodes
+		a_sub		-	kinematic variable
+		b_sub		-	kinematic variable
+		
+Output:	
+---------------------------------------------------------------- */
+void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
+{
+	#if !RP_HOST
+	face_t f;
+	Node *v;
+	int n;
+	int j = 0;
+	
+	
+	/* -- Move nodes --  */
+	Message0("\tMoving nodes to stored positions...\n");
+	j = 0;
+	begin_f_loop(f,tf) {
+		if PRINCIPAL_FACE_P(f,tf) {
+			f_node_loop(f,tf,n) 
+			{
+				v = F_NODE(f,tf,n);
+				
+				if (NODE_POS_NEED_UPDATE (v)) {	/* this was commented out! may break the simulation, keep an eye out */
+					NODE_X(v) = N_UDMI(v, x_memslot);
+					NODE_Y(v) = N_UDMI(v, y_memslot);
+					NODE_POS_UPDATED(v);
+					
+					
+					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
+					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
+					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
+					/* Message("node %i:  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
+					j++;
+				}
+				/* else */
+				/* { */
+					/* Message("Already updated node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
+					/* Message("Already updated node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
+					
+				/* } */
+			}
+		}
+	}
+	end_f_loop(f,tf);
+	
+	#endif
+}
 
 /*---------- Get_ArcLengths---------------------------------------
 Purpose: Use to sorting approach to order the nodes after 	
@@ -1935,65 +1990,6 @@ void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnfl
 
 	#endif
 }
-
-
-/*---------- Move_Nodes_to_Stored_Positions ----------------------------
-Purpose: Moves the nodes according to kinematic and dynamic motions
-calculated in calcMeshMovement()
-
-Input:	holdNodes	-	array of sorted nodes, from apex to margin
-		i 			-	total number of nodes in this zone
-		i1			-	index of flex point node in holdNodes
-		a_sub		-	kinematic variable
-		b_sub		-	kinematic variable
-		
-Output:	
----------------------------------------------------------------- */
-void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
-{
-	#if !RP_HOST
-	face_t f;
-	Node *v;
-	int n;
-	int j = 0;
-	
-	
-	/* -- Move nodes --  */
-	Message0("\tMoving nodes to stored positions...\n");
-	j = 0;
-	begin_f_loop(f,tf) {
-		if PRINCIPAL_FACE_P(f,tf) {
-			f_node_loop(f,tf,n) 
-			{
-				v = F_NODE(f,tf,n);
-				
-				if (NODE_POS_NEED_UPDATE (v)) {	/* this was commented out! may break the simulation, keep an eye out */
-					NODE_X(v) = N_UDMI(v, x_memslot);
-					NODE_Y(v) = N_UDMI(v, y_memslot);
-					NODE_POS_UPDATED(v);
-					
-					
-					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
-					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
-					/* Message("node %i:  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
-					j++;
-				}
-				/* else */
-				/* { */
-					/* Message("Already updated node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("Already updated node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
-					
-				/* } */
-			}
-		}
-	}
-	end_f_loop(f,tf);
-	
-	#endif
-}
-
-
 
 /**---------- Store_OldKinematicVars ---------------------------
 * TODO: Clean this up and make sure this isn't part of the problem w/ running on n>2 nodes

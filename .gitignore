@@ -4,6 +4,11 @@
 # ANSYS Fluent
 **/*.dat
 **/*cleanup*
+**/*.log
+**/Makefile
+**/lnamd64
+**/*.udf
+**/libudf/recompile
 
 # Tecplot
 **/tecplot-derived/
