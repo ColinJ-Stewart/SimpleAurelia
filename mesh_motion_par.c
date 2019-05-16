@@ -209,12 +209,11 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		if (myid == thisID)
 		{
 			v = holdNodes[localj];
-			
-			if(NODE_POS_NEED_UPDATE(v))	
+			if (NODE_POS_NEED_UPDATE(v) || (NODE_Y(v) <= 1e-7))
 			{	
 				/* store old position  */
 				N_UDMI(v,2) = NODE_X(v); 	/* xold */
-				N_UDMI(v,3) = NODE_Y(v);	/* yold					 */
+				N_UDMI(v,3) = NODE_Y(v);	/* yold */
 				
 				/* kinematic motion  */
 				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
@@ -255,17 +254,21 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 					iHaveTip = 1;
 				}
 				
-				/* -- Move nodes --  */
-				NODE_X(v) = N_UDMI(v,4);
-				NODE_Y(v) = N_UDMI(v,5);
+				/* -- Move nodes except apex --  */
+				if (NODE_Y(v) > 1e-7)
+				{
+					NODE_X(v) = N_UDMI(v,4);
+					NODE_Y(v) = N_UDMI(v,5);
+				}
+				NODE_POS_UPDATED(v);
 				/** DEBUG * */
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
-				/* Message("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid);
+				/* Message("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid); */
 				Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid);
-				Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */
-				/* } */
-				NODE_POS_UPDATED(v);
+				/* Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */ 
+				/* }
+				
 			}
 			else
 			{
@@ -277,6 +280,63 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		}
 	}
 
+	#endif
+}
+
+/*---------- Move_Nodes_to_Stored_Positions ----------------------------
+Purpose: Moves the nodes according to kinematic and dynamic motions
+calculated in calcMeshMovement()
+
+Input:	holdNodes	-	array of sorted nodes, from apex to margin
+		i 			-	total number of nodes in this zone
+		i1			-	index of flex point node in holdNodes
+		a_sub		-	kinematic variable
+		b_sub		-	kinematic variable
+		
+Output:	
+---------------------------------------------------------------- */
+void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
+{
+	#if !RP_HOST
+	face_t f;
+	Node *v;
+	int n;
+	int j = 0;
+	
+	
+	/* -- Move nodes --  */
+	Message0("\tMoving nodes to stored positions...\n");
+	j = 0;
+	begin_f_loop(f,tf) {
+		if PRINCIPAL_FACE_P(f,tf) {
+			f_node_loop(f,tf,n) 
+			{
+				v = F_NODE(f,tf,n);
+				
+				if (NODE_POS_NEED_UPDATE(v) && (NODE_Y(v) > 1e-7))
+				{	/* this was commented out! may break the simulation, keep an eye out */
+					NODE_X(v) = N_UDMI(v, x_memslot);
+					NODE_Y(v) = N_UDMI(v, y_memslot);
+					NODE_POS_UPDATED(v);
+					
+					
+					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
+					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
+					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
+					/* Message("node %i:  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
+					j++;
+				}
+				/* else */
+				/* { */
+					/* Message("Already updated node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
+					/* Message("Already updated node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
+					
+				/* } */
+			}
+		}
+	}
+	end_f_loop(f,tf);
+	
 	#endif
 }
 
@@ -894,17 +954,17 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	}
 
 	Message0("\t\t Printing out idArray:\n");
-	for (j = 1; j < total_i; j++)
+	for (j = 0; j < total_i; j++)
 	{	
 		thisID = (int) masterArr_myid[j];
 		j_lcl = (int) masterArr_jlcl[j];
 
-		Message0("\t\t j:%i  idArray = [%i][%i]  dist = %lf\n", j, thisID, j_lcl, masterArr_dist[j]);
+		/* Message0("\t\t j:%i  idArray = [%i][%i]  dist = %lf\n", j, thisID, j_lcl, masterArr_dist[j]); */
 	}
 
 	Message0("\t\t Saving locally \n");
 	/* save locally */
-	for (j = 1; j < total_i; j++)
+	for (j = 0; j < total_i; j++)
 	{	
 		thisID = (int) masterArr_myid[j];
 		j_lcl =  (int) masterArr_jlcl[j];
@@ -1625,61 +1685,6 @@ void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnfl
 }
 
 
-/*---------- Move_Nodes_to_Stored_Positions ----------------------------
-Purpose: Moves the nodes according to kinematic and dynamic motions
-calculated in calcMeshMovement()
-
-Input:	holdNodes	-	array of sorted nodes, from apex to margin
-		i 			-	total number of nodes in this zone
-		i1			-	index of flex point node in holdNodes
-		a_sub		-	kinematic variable
-		b_sub		-	kinematic variable
-		
-Output:	
----------------------------------------------------------------- */
-void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
-{
-	#if !RP_HOST
-	face_t f;
-	Node *v;
-	int n;
-	int j = 0;
-	
-	
-	/* -- Move nodes --  */
-	Message0("\tMoving nodes to stored positions...\n");
-	j = 0;
-	begin_f_loop(f,tf) {
-		if PRINCIPAL_FACE_P(f,tf) {
-			f_node_loop(f,tf,n) 
-			{
-				v = F_NODE(f,tf,n);
-				
-				if (NODE_POS_NEED_UPDATE (v)) {	/* this was commented out! may break the simulation, keep an eye out */
-					NODE_X(v) = N_UDMI(v, x_memslot);
-					NODE_Y(v) = N_UDMI(v, y_memslot);
-					NODE_POS_UPDATED(v);
-					
-					
-					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
-					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
-					/* Message("node %i:  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
-					j++;
-				}
-				/* else */
-				/* { */
-					/* Message("Already updated node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("Already updated node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
-					
-				/* } */
-			}
-		}
-	}
-	end_f_loop(f,tf);
-	
-	#endif
-}
 
 
 
