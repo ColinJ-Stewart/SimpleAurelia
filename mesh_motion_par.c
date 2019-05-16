@@ -209,8 +209,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		if (myid == thisID)
 		{
 			v = holdNodes[localj];
-			
-			if(NODE_POS_NEED_UPDATE(v))	
+			if (NODE_POS_NEED_UPDATE(v))	
 			{	
 				/* store old position  */
 				N_UDMI(v,2) = NODE_X(v); 	/* xold */
@@ -255,9 +254,13 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 					iHaveTip = 1;
 				}
 				
-				/* -- Move nodes --  */
-				NODE_X(v) = N_UDMI(v,4);
-				NODE_Y(v) = N_UDMI(v,5);
+				/* -- Move nodes except apex --  */
+				if (NODE_Y(v) > 1e-7)
+				{
+					NODE_X(v) = N_UDMI(v,4);
+					NODE_Y(v) = N_UDMI(v,5);
+				}
+				NODE_POS_UPDATED(v);
 				/** DEBUG * */
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
@@ -265,7 +268,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid);
 				Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */
 				/* } */
-				NODE_POS_UPDATED(v);
+				
 			}
 			else
 			{
@@ -894,17 +897,17 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	}
 
 	Message0("\t\t Printing out idArray:\n");
-	for (j = 1; j < total_i; j++)
+	for (j = 0; j < total_i; j++)
 	{	
 		thisID = (int) masterArr_myid[j];
 		j_lcl = (int) masterArr_jlcl[j];
 
-		Message0("\t\t j:%i  idArray = [%i][%i]  dist = %lf\n", j, thisID, j_lcl, masterArr_dist[j]);
+		/* Message0("\t\t j:%i  idArray = [%i][%i]  dist = %lf\n", j, thisID, j_lcl, masterArr_dist[j]); */
 	}
 
 	Message0("\t\t Saving locally \n");
 	/* save locally */
-	for (j = 1; j < total_i; j++)
+	for (j = 0; j < total_i; j++)
 	{	
 		thisID = (int) masterArr_myid[j];
 		j_lcl =  (int) masterArr_jlcl[j];
@@ -1655,7 +1658,8 @@ void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
 			{
 				v = F_NODE(f,tf,n);
 				
-				if (NODE_POS_NEED_UPDATE (v)) {	/* this was commented out! may break the simulation, keep an eye out */
+				if (NODE_POS_NEED_UPDATE(v) && (NODE_Y(v) > 1e-5))
+				{	/* this was commented out! may break the simulation, keep an eye out */
 					NODE_X(v) = N_UDMI(v, x_memslot);
 					NODE_Y(v) = N_UDMI(v, y_memslot);
 					NODE_POS_UPDATED(v);
