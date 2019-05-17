@@ -211,10 +211,6 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 			v = holdNodes[localj];
 			if (NODE_POS_NEED_UPDATE(v) || (NODE_Y(v) <= 1e-7))
 			{	
-				/* store old position  */
-				N_UDMI(v,2) = NODE_X(v); 	/* xold */
-				N_UDMI(v,3) = NODE_Y(v);	/* yold */
-				
 				/* kinematic motion  */
 				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
 				/* g[j] = 1.0; */
@@ -265,7 +261,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
 				/* Message("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid); */
-				Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid);
+				/* Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid); */
 				/* Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */ 
 				/* }
 				
@@ -454,7 +450,7 @@ double Get_Unflexed_ArcLengths(char meshZone, Node *holdNodes[], int nNodes)
 	Node *v, *w;
 	
 	
-	/* First iteration of arc length calc  */
+	/* First point of arc length calc  */
 	N_UDMI(holdNodes[0],14) = 0;
 	/* Message("arclength = %lf, dist = %lf \n",N_UDMI(holdNodes[0],1), 0); */
 	for (j = 1; j < nNodes; j++) { 
@@ -874,7 +870,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 
 			if ( NodeIsTip(holdNodes[j_lcl]) )
 			{
-				/* Message0("\t\t Adding tip to masterArr! N_UDMI(v,6) = %lf, N_UDMI(v,7) = %lf\n",N_UDMI(holdNodes[j_lcl],6), N_UDMI(holdNodes[j_lcl],7)); */
+				Message0("\t\t Adding tip to masterArr! N_UDMI(v,6) = %lf, N_UDMI(v,7) = %lf\n",N_UDMI(holdNodes[j_lcl],6), N_UDMI(holdNodes[j_lcl],7));
 				masterArr_x_un[j] = xTipUnflexedOld;
 				masterArr_y_un[j] = yTipUnflexedOld;
 				masterArr_x_fl[j] = xTipOld;
@@ -979,7 +975,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* Debug */
 	for (j = 0; j < total_i; j++)
 	{
-		Message0("\t\t arclengthArray_unflex[%i] = %10.10f (dist = %lf, x = %lf, y = %lf)\n", j, arclengthArray_unflex[j], masterArr_dist[j], masterArr_x_un[j], masterArr_y_un[j] ); 
+		/* Message0("\t\t arclengthArray_unflex[%i] = %10.10f (dist = %lf, x = %lf, y = %lf)\n", j, arclengthArray_unflex[j], masterArr_dist[j], masterArr_x_un[j], masterArr_y_un[j] );  */
 	}
 	
 	/**
@@ -1704,7 +1700,30 @@ void Store_OldKinematicVars(void)
 	int i, n, N, tipScan;
 	int *tip_arr, *iworkN;
 	
+	tf_array[0] = tf_ex;
+	tf_array[1] = tf_sub;
+	
+	
 	#if PARALLEL
+	/* ---------------------------------- */
+	/* Store old (current) node positions */
+	/* ---------------------------------- */
+	for (i = 0; i < NUM_ZONES; i++)
+	{
+		tf = tf_array[i];
+		begin_f_loop(f,tf) {
+			if PRINCIPAL_FACE_P(f,tf) {
+				f_node_loop(f,tf,n) 
+				{
+					v = F_NODE(f,tf,n);
+					N_UDMI(v,2) = NODE_X(v); 	/* xold */
+					N_UDMI(v,3) = NODE_Y(v);	/* yold */
+				}
+			}
+		}
+		end_f_loop(f,tf);
+	}
+
 	
 	/** Simple tip coord sync **/
 	/* ----------------------  */
@@ -1759,10 +1778,8 @@ void Store_OldKinematicVars(void)
 	/* ----------------------  */
 	/* store tparm for all other nodes  */
 	/* ----------------------  */
-	tf_array[0] = tf_ex;
-	tf_array[1] = tf_sub;
-	
 	Message0("Storing tparm_old values on surface ");
+	/* loop over the zones stored in tf_array */
 	for (i = 0; i < NUM_ZONES; i++)
 	{
 		Message0("%i... ", i);
