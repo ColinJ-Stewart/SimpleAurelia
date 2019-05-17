@@ -7,7 +7,7 @@
 ;; /file/auto-save/retain-most-recent-files yes
 ;; /file/auto-save/max-files 5
 ;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
+/file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
 /solve/set/limiter-warnings? no
 /solve/set/flow-warnings? no
 /solve/set/reporting-interval 100
@@ -78,7 +78,7 @@
 ;; /par/part/set/origin 0 0.2
 /par/part/set/merge yes 3
 /par/part/set/smooth yes 3
-/par/part/method cartesian-y 4
+/par/part/method cartesian-y 8
 /par/part/use-stored-part
 /par/part/auto/method cartesian-y
 /par/load-balance/dynamic-mesh n
@@ -100,15 +100,15 @@
 
 ;; /solve/dual-time-iterate 31000 40
 ;; /solve/dual-time-iterate 7 40
-/solve/dual-time-iterate 320 40
+/solve/dual-time-iterate 1000 40
 
 
 ;;*********************************************************************
 ;;*** Start saving files with greater resolution in fluent format   ***
 ;;*** AFTER steady state is reached! Restart sim with new settings! ***
 ;;*********************************************************************
-/file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 3 y
+;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
 ;; /file/auto-save/data-frequency 1
 ;; /file/auto-save/root-name Aurelia_v1.1_dev_
 ;; /file/auto-save/append-file-name-with time-step 5
-/solve/dual-time-iterate 680 40
+;; /solve/dual-time-iterate 200 40
