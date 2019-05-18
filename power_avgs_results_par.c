@@ -24,55 +24,52 @@ Input:	FILE *stream	-	File stream
 ---------------------------------------------------------------- */
 double Compute_Power_In(Thread *tf, double velx, double vely) 
 {
-	double power = 0.0;
-	
-	#if !RP_HOST	/*SERIAL or NODE */
-	Thread *tf0;
-	face_t f;
-	cell_t c;
-	double A[ND_ND];
-	double powerInviscid = 0.0;
-	double powerDebug = 0.0;
-	double thrustDebugInv = 0.0;
-	double thrustDebugVisc1 = 0.0;
-	double thrustDebugVisc2 = 0.0;
-	
-
-	/* loop through cells on  surface, calculating power from each  */
-	begin_f_loop(f,tf) {  
-		c = F_C0(f,tf);
-		tf0 = THREAD_T0(tf);
-		F_AREA(A,f,tf);
-		
-		/* power = power +  */
-			/* A[0]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DUDX(c,tf))*C_U(c,tf) +  */
-					/* C_MU_L(c,tf)*(C_DVDX(c,tf) + C_DUDY(c,tf))*C_V(c,tf)) + */
-			/* A[1]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DVDY(c,tf))*C_V(c,tf) +  */
-					/* C_MU_L(c,tf) * (C_DVDX(c,tf) + C_DUDY(c,tf))*C_U(c,tf)); */
-		
-		/* powerInviscid = powerInviscid + A[0]*2*M_PI*(-F_P(f,tf))*F_U(f,tf)  + A[1]*2*M_PI*(-F_P(f,tf))*F_V(f,tf);		// Inviscid power */
-										
-										
-										
-		/* _______________________________________________________  */
-		
-		/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
-		power = power + -2*M_PI*( (A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]) * F_U(f,tf) 
-								+ (A[1]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[1]) * F_V(f,tf) );
-		/* _______________________________________________________  */
-
-		
-	} end_f_loop(f,tf)
-	
+	#if RP_HOST
+		return 0.0;
 	#endif
-	
-	return power;
-	/* return powerInviscid; */
-	/* return powerDebug; */
-	/* return thrustDebugInv; */
-	/* return thrustDebugVisc1; */
-	/* return thrustDebugVisc2; */
 
+	#if !RP_HOST
+		face_t f;
+		cell_t c;
+		Thread *tf0;
+		double A[ND_ND];
+		double power = 0.0;
+		
+
+		/* loop through cells on  surface, calculating power from each  */
+		begin_f_loop(f,tf) 
+		{
+			if PRINCIPAL_FACE_P(f,tf)
+			{  
+				c = F_C0(f,tf);
+				tf0 = THREAD_T0(tf);
+				F_AREA(A,f,tf);
+				
+				/* Viscous pwoer */
+				/* power = power +  */
+					/* A[0]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DUDX(c,tf))*C_U(c,tf) +  */
+							/* C_MU_L(c,tf)*(C_DVDX(c,tf) + C_DUDY(c,tf))*C_V(c,tf)) + */
+					/* A[1]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DVDY(c,tf))*C_V(c,tf) +  */
+							/* C_MU_L(c,tf) * (C_DVDX(c,tf) + C_DUDY(c,tf))*C_U(c,tf)); */
+				
+				/* Inviscid power */
+				/* power = power + A[0]*2*M_PI*(-F_P(f,tf))*F_U(f,tf)  + A[1]*2*M_PI*(-F_P(f,tf))*F_V(f,tf);		// Inviscid power */
+				
+				/* _______________________________________________________  */
+				
+				/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
+				power = power + -2*M_PI*( (A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]) * F_U(f,tf) 
+										+ (A[1]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[1]) * F_V(f,tf) );
+				/* _______________________________________________________  */
+			}
+		} end_f_loop(f,tf)
+		
+		#if RP_NODE
+			power = PRF_GRSUM1(power);
+		#endif
+		
+		return power;
+	#endif
 }
 
 
