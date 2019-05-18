@@ -5,6 +5,7 @@ static double x_prev = 0.0;
 static double x_target = 0.0;
 static double del_x_prev = 0.0;
 static double preVel = 0.0;		        /* x-velocity one iteration ago (needed for finite diff) */
+static double fx_at_end = 0.0;
 static double fx_prev = 0.0;
 
 static double xS_prev = 0.0;
@@ -14,13 +15,13 @@ static double preVelS = 0.0;
 static double fxS_prev = 0.0;
 
 int ke = 0;
+int ki = 0;
 int ks = 0;
 
 const double ALPHA_F = 0.05;		/* Settings for explicit scheme */
 const double ALPHA_X = 1.0;			/* Settings for explicit scheme */
 
-/* const double ALPHA_F = 1.0;		// Settings for implicit scheme */
-/* const double ALPHA_X = 0.4;		// Settings for implicit scheme */
+const double ALPHA_Fi = 1.0;		/* Settings for implicit scheme */
 
 
 /** Function definitions * */
@@ -156,9 +157,12 @@ double Get_BodyVelocity(Thread *tf, char meshZone, double fx_tot, double *del_x_
 			{
 				if (NewTimeStepForThisZone('e') && NewTimeStepForThisZone('i')) 
 				{
-					Message("\t-------- calc -------- \n");
-					ke = 1;
-					
+					Message("\t-------- calc vel on zone %c -------- \n",meshZone);
+					if (meshZone == 'e')
+					{
+						ke = 1;
+					}
+
 					if (N_TIME == 0) 	/* first time step */
 					{
 						x = x_position;
@@ -197,7 +201,10 @@ double Get_BodyVelocity(Thread *tf, char meshZone, double fx_tot, double *del_x_
 				}
 				else 
 				{
-					ke = ke + 1;
+					if (meshZone == 'e')
+					{
+						ke = ke + 1;
+					}
 					x = x_prev;
 					del_x = del_x_prev;
 					nextVel = preVel;
@@ -345,145 +352,135 @@ Input:
 
 Output:
 ---------------------------------------------------------------- */
-double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, double *del_x_ptr)
+double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_k_raw, double *del_x_ptr)
 {
 	double vel = 0.0;
 	
 	#if !RP_HOST
 		double mass_jelly = Get_Mass();
+		double fx, fxS;
 		double nextVel = 0.0, nextVelS = 0.0;
 		double x, x_raw, xS_raw;
 		double x_position;
 		double del_x = 0.0, del_xS = 0.0;
 		int endFlag = 0;
 		
-		
 		x_position = Rezero(tf);
 		
 		if ((myid == 0) || (myid == 1000000))	
 		{
-			
 			/* Message("\tx_position = %16.12f, ", x_position); */
 			/* Message("x_prev = %16.12f, x_prevS = %16.12f\n", x_prev, xS_prev); */
-			
-			
-			if (meshZone == 'e') 
+
+			/* iteration 1 calc new velocity and x-displacement  */
+			/**
+			 * ?redundant w/ NewTimeStep() ?
+			 **/
+			if (NewTimeStepForThisZone('e') && NewTimeStepForThisZone('i')
+				&& NewTimeStepForThisZone('s')) 
 			{
+				Message("\t-------- calc vel on zone %c -------- \n",meshZone);
+				if (meshZone == 'e')
+				{
+					ke = 1;
+				}
+				else
+				{
+					ki = 1;
+				}
+				
+				/* First time step (initialize) */
 				if (N_TIME == 0) 
 				{
-					/* Message("N_TIME = %i, preTime_ex = %i\n", N_TIME, preTime_ex); */
-					if (NewTimeStepForThisZone(meshZone)) 
-					{
-						ke = 1;
-						x = x_position;
-						x_prev = x;
-						fx_prev = fx_tot;
-						del_x = 0.0;
-						del_x_prev = 0.0;
-						nextVel = 0.0;
-						preVel = 0.0;
-					}
-					else {
-						/* do nothing  */
-					}
-				}
-				else /* N_TIME > 0 */
-				{
-					if (NewTimeStepForThisZone(meshZone)) 
-					{
-						ke = 1;
-						
-						/* Calc INITIAL new velocity and x-displacement  */		
-						nextVel = preVel + (fx_prev/mass_jelly) * CURRENT_TIMESTEP; 		/* forward diff w/o smoothing, 1st order accurate */
-						x_target = x_prev + nextVel*CURRENT_TIMESTEP;
-					}
-					else if ((ke%2 == 1) && (endFlag == 0))
-					{
-						/* Calc new velocity and x-displacement  */		
-						Message("Recalculating velocity... ");
-						nextVel = preVel + (fx_tot/mass_jelly) * CURRENT_TIMESTEP; 		/* backwards diff, 1st order accurate */
-						x_raw = x_prev + nextVel*CURRENT_TIMESTEP;
-						x_target = ALPHA_X*x_raw + (1-ALPHA_X)*x_target;		/* <--- THIS IS THE EQ THAT IS DIFFERENT FOR IMPLICIT */
-						Message("Done. \n");
-					}
-					else {
-						/* Do nothing when UDF is being called by Laplace mesh smoothing  */
-					}
+					nextVel_k = 0.0;
+					x_k = x_position;
 				}
 				
-				/* calculate delta_x at beginning of time step and every other
-					subsequent iteration  */
-				if ((ke%2 == 1) && (endFlag == 0)) 
+				/* Subsequent steps (Explicit Euler) */
+				else 
 				{
-					del_x = x_target - x_prev;
-					vel = nextVel;
-					*del_x_ptr = del_x;
+					/* Update values from last iteration of last time step */
+					fx_prev = fx_k;
+					preVel = nextVel_k;
+					x_prev = x_k;
+
+
+					/* fx_k = ALPHA_Fi*fx_k_raw + (1-ALPHA_Fi)*fx_prev; */
+					nextVel_k = preVel + (fx_prev/mass_jelly) * CURRENT_TIMESTEP;
+					del_x_k = nextVel_k * CURRENT_TIMESTEP;
+					*del_x_ptr = del_x_k;
 				}
+
+				/** 
+				 * !store for next iteration IF NOT HANDLED AT EXECUTE_AT_END 
+				 * */
+				/* fx_prev = fx;
+				preVel = nextVel;
+				x_prev = x; */
 				
-				/* Message("Iteration %i through EXUM: del_x = %16.12f, vel_x = %16.12f\n", ke, del_x, preVel); */
-				Message("ke = %i\n", ke);
-				ke = ke + 1;
+			}
+			/*  iteration >1 calc new velocity and x-displacement  */
+			else if ( ((ke%2 == 1) || (ki%2 == 1)) && (endFlag == 0) )
+			{
+				/* Update values from last iteration */
+				fx_k_prev = fx_k;
+
+				/* Implicit Euler  */		
+				Message0("Recalculating velocity (meshZone %c)... ", meshZone);
+				fx_k = ALPHA_Fi*fx_k_raw + (1-ALPHA_Fi)*fx_k_prev;
+				nextVel_k = preVel + (fx_k/mass_jelly) * CURRENT_TIMESTEP; 		/* backwards diff, 1st order accurate */
+				del_x_k = nextVel_k * CURRENT_TIMESTEP;	/* backwards diff, 1st order accurate */
+				*del_x_ptr = del_x_k;
+				Message0("Done. \n");
+
+				/** 
+				 * !store for next iteration IF NOT HANDLED AT EXECUTE_AT_END 
+				 * */
+				/* fx_prev = fx_raw;
+				preVel = nextVel; */
+				
+			}
+			else 
+			{
+				/* Calc nothing when UDF is being called by Laplace mesh smoothing  */
+				/**
+				 * ? Calc nothing, or DO nothing?
+				 **/
 			}
 			
+			/* Message("Iteration %i through EXUM: del_x = %16.12f, vel_x = %16.12f\n", ke, del_x, preVel); */
+			Message("ke = %i\n", ke);
+			if (meshZone == 'e')
+			{
+				ke = ke + 1;
+			}
+			if (meshZone == 'i')
+			{
+				ki = ki + 1;
+			}
 			if (meshZone == 's')
 			{
-				if (N_TIME == 0) 
-				{
-					if (NewTimeStepForThisZone(meshZone)) 
-					{
-						ks = 1;
-						xS_target = x_position;
-						xS_prev = x_position;
-						fxS_prev = 0.0;
-						del_xS = 0.0;
-						nextVelS = 0.0;
-						preVelS = 0.0;
-					}
-					else {
-						/* do nothing  */
-					}
-				}
-				else /* N_TIME > 0 */
-				{
-					if(NewTimeStepForThisZone(meshZone)) 
-					{
-						ks = 1;
-						
-						/* Calc new velocity and x-displacement  */
-						nextVelS = preVelS + (fxS_prev/mass_jelly) * CURRENT_TIMESTEP; 		/* forward diff w/o smoothing, 1st order accurate */
-						xS_target = xS_prev + nextVelS*CURRENT_TIMESTEP;
-						
-					}
-					else if ((ks%2 == 1) && (endFlag == 0)) {
-						/* Calc new velocity and x-displacement  */
-						Message("Recalculating velocity... ");
-						nextVelS = preVelS + (fx_tot/mass_jelly) * CURRENT_TIMESTEP; 		/* backwards diff, 1st order accurate */
-						xS_raw = xS_prev + nextVelS*CURRENT_TIMESTEP;
-						xS_target = ALPHA_X*xS_raw + (1-ALPHA_X)*xS_target;			/* <--- THIS IS THE EQ THAT IS DIFFERENT FOR IMPLICIT */
-						Message("Done. \n");
-					}
-					else {
-						/* Do nothing when UDF is being called by Laplace mesh smoothing  */
-					}
-				}
-					
-				if ((ks%2 == 1) && (endFlag == 0))
-				{
-					del_xS = xS_target - xS_prev;
-					vel = nextVelS;
-					*del_x_ptr = del_xS;
-				}
-					
-				Message("ks = %i\n", ks);
 				ks = ks + 1;
 			}
 		}
 	#endif
 	
-	/* (Parallel) Sync velocities across all nodes  */
-	vel = PRF_GRSUM1(vel);
+	/* (Parallel) Sync velocities across all nodes since vel is only calc'd by node0  */
+	nextVel_k = PRF_GRSUM1(nextVel_k);
 	*del_x_ptr = PRF_GRSUM1(*del_x_ptr);
 	
-	
-	return vel;
+	return nextVel_k;
+}
+
+void Store_OldForce(double fx_tot, double vel, double x)
+{
+	#if !RP_HOST
+		fx_prev = fx_tot;
+		fxS_prev = fx_tot;
+
+		preVel = vel;
+
+		x_prev = x;
+
+	#endif
 }

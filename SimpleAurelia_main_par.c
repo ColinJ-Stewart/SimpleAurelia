@@ -438,6 +438,7 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 	/* SERIAL/NODES store the old values of tparm, tip coords, etc.  */
 	#if !RP_HOST
 		Store_OldKinematicVars();
+		Store_OldForce(fx_tot);
 	#endif
 	
 	Message0("---FINISHED EXECUTE AT END UDF---\n");
