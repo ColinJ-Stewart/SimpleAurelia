@@ -78,7 +78,7 @@
 ;; /par/part/set/origin 0 0.2
 /par/part/set/merge yes 3
 /par/part/set/smooth yes 3
-/par/part/method cartesian-y 8
+/par/part/method cartesian-y 16
 /par/part/use-stored-part
 /par/part/auto/method cartesian-y
 /par/load-balance/dynamic-mesh n
@@ -100,7 +100,7 @@
 
 ;; /solve/dual-time-iterate 31000 40
 ;; /solve/dual-time-iterate 7 40
-/solve/dual-time-iterate 1000 40
+/solve/dual-time-iterate 16000 40
 
 
 ;;*********************************************************************
@@ -112,3 +112,5 @@
 ;; /file/auto-save/root-name Aurelia_v1.1_dev_
 ;; /file/auto-save/append-file-name-with time-step 5
 ;; /solve/dual-time-iterate 200 40
+
+/file/write-case-data Aur_v1.2dev_AfterQuit
