@@ -42,263 +42,6 @@ static int i1_sub = -1;
 static int newNodeFlag = 0;
 static int iHaveTip = 0;
 
-/** DEBUGGING Function definitions **/
-
-/*-------------------------------------------- */
-void Calc_Mesh_Movement_debug(Thread *tf, char meshZone, double tau, double del_x, double vel) 
-{
-	int a = 0;
-	#if !RP_HOST
-	/* Message("(before) tip = (%f, %f) tipUnflexed = (%f, %f)\n", xTip, yTip, xTipUnflexed, yTipUnflexed); 
-		 */
-	/* Message("(before) tip_temp = (%f, %f) tipUnflexed_temp = (%f, %f)\n", xTip_temp, yTip_temp, xTipUnflexed_temp, yTipUnflexed_temp); 
-		 */
-
-	if (NewTimeStepForThisZone(meshZone))
-	{
-		Calc_Kinematics_and_Move_debug(tf, meshZone, tau, del_x);
-		a = 1;
-	}
-	else
-		/* Move_Nodes_to_Stored_Positions_debug(tf, 4, 5);  */
-		a = 2;
-	
-	#endif 
-}
-
-
-/*-------------------------------------------- */
-void Calc_Kinematics_and_Move_debug(Thread *tf, char meshZone, double tau, double del_x) 
-{
-	#if !RP_HOST
-	face_t f;
-	Node *v;
-	Node *holdNodes[MAX_NODES];
-	double sa = 0.0;
-	double sb = 0.0;
-	double sd = 0.0;
-	double sg = 0.0;
-	double a, b, d, a_sub[MAX_NODES], b_sub[MAX_NODES], g[MAX_NODES];
-	double yi, xold, yold, xmax, yAtXmaxOld, yAtXmaxNew;
-	double N = 1.0;
-	int i, j, n;
-	int i1 = 0;
-	int count = 0;
-	double *sa_ptr = &sa;
-	double *sb_ptr = &sb;
-	double *sd_ptr = &sd;
-	double *sg_ptr = &sg;
-	double *a_sub_ptr = a_sub;
-	double *b_sub_ptr = b_sub;
-	double apex_scale_factor, scaled_input;
-	FILE *fdebug;
-	int firstFlag = 0;
-	double S, Smax, SmaxUnflexed;
-	double *Smax_ptr = &Smax;
-	double *SmaxUnflexed_ptr = &SmaxUnflexed;
-	int total_i = 0;
-	double x = Rezero(tf);			/* Rezero() auto syncs value to all comp nodes  */
-	int idArray[MAX_NODES][2];
-	int thisID, localj;
-	double coordArray_x_flex[MAX_NODES];
-	double coordArray_y_flex[MAX_NODES];
-	double arclengthArray_unflex[MAX_NODES];
-	
-	/* initialize kinematics arrays  */
-	for (j=0; j < MAX_NODES; j++) 
-	{
-		a_sub[j] = 0.0;
-		b_sub[j] = 0.0;
-		g[j] = 0.0;
-	}
-
-	/* calculate the current values of kinematic functions sa, sb, sd  */
-	/*Message0("\tCalculating kinematics (s-functions):  ");*/
-	Load_sa(tau/PERIOD, sa_ptr);			/* Message("sa = %16.12f\n",sa); */
-	Load_sb(tau/PERIOD, sb_ptr);
-	Load_sd(tau/PERIOD, sd_ptr);
-	Load_sg(tau/PERIOD, sg_ptr);
-	Message("sa = %lf, sb = %lf, sd = %lf, sg = %lf\n",sa, sb, sd, sg);
-	
-	/*Message0("\tCalculating kinematics (a, b, d):  ");*/
-	/* calculate the function values for a, b, d  */
-	a = ai*(1-sa*pa);
-	b = bi*(1-sb*pb);
-	d = di*(1-sd*pdd);
-	/*Message0("a = %lf, b = %lf, d = %lf\n",a, b, d);*/
-	
-	/* calculate the new position of the margin tip. This is used to find arc length as well as tparm  */
-	tparmTip = acos(d/b);
-	
-	if (N_TIME == 0) 
-	{
-		xTipUnflexed = b*cos(tparmTip) + b;
-		yTipUnflexed = a*sin(tparmTip);
-		xTipUnflexedOld = xTipUnflexed;
-		yTipUnflexedOld = yTipUnflexed;
-		
-		xTip =  xTipUnflexed;
-		yTip = yTipUnflexed;
-		xTipOld = xTipUnflexed;
-		yTipOld = yTipUnflexed;
-	}
-	Message0("\tReporting tip values: tparmTip = %lf, xTipUnflexed = %lf, yTipUnflexed = %lf \n", tparmTip, xTipUnflexed, yTipUnflexed);
-
-	/* ----- calculate ARC LENGTHS and SORT NODES from apex to margin ----------  */	
-	Message0("\tCalculating surface arc length... \n");
-	/* PRF_GSYNC(); */
-	i = Get_ArcLengths(tf, meshZone, holdNodes, Smax_ptr, SmaxUnflexed_ptr, idArray,
-				coordArray_x_flex, coordArray_y_flex, arclengthArray_unflex);	/* i = number of nodes on mesh zone */
-	
-	/*Message0("\tSumming i's\n");*/
-	#if PARALLEL
-		total_i = PRF_GISUM1(i);
-	#endif
-	/*Message0("\t(i = %i nodes)\n",i);*/
-	
-	/*------------ calculate tparm, asub, and bsub ------------ */
-	if (meshZone == 'e') { 
-		/*Message("\tCalculating initial tparm values... \n");*/
-		Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
-	}
-	else if (meshZone == 's') {
-		if  (N_TIME == 0) 
-		{
-			Message0("\tLoading initial a_sub and b_sub values... \n");
-			Load_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray,
-						coordArray_y_flex, arclengthArray_unflex);
-			Load_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray,
-						coordArray_x_flex, arclengthArray_unflex);
-			
-			Message0("\tCalculating initial tparm values... \n");
-			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
-		}
-		else 
-		{
-			/* Message("!! tparmTip = %lf, tparmTipOld = %lf!!\n", tparmTip, tparmTipOld);  */
-			/*Message0("\tCalculating tparm... \n");*/
-			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
-			
-			/*Message0("\tCalculating a_sub... \n");*/
-			Get_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray);
-			
-			/*Message0("\tCalculating b_sub... \n");*/
-			Get_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray);
-		}
-	}
-	else Error("Incorrect meshZone char");
-	
-	/*Message("\tFinding flex points... \n");*/
-	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
-	
-	Reinit_node_mem_int(tf, 9, 1);		/* Setting N_UDMI slot 9 to 1 (i.e. N_UDMI(v,9) = 1) */
-	
-	Message("\tMove Nodes Loop\n");
-	Message("\tx = %lf, del_x = %lf\n", x, del_x);
-	for (j = 0; j < total_i; j++) 
-	{
-		thisID = idArray[j][0];		/* the comp node ID corresponding to node j in global holdNodes */
-		localj = idArray[j][1];		/* local holdNodes index for node j on comp node thisID */
-		/* Message("j:%i  thisID = %i \t localj = %i\n", j, thisID, localj);  */
-		
-		if (myid == thisID)
-		{
-			v = holdNodes[localj];
-			
-			/* if(NODE_POS_NEED_UPDATE(v))	 */
-			/* {	 */
-				/* store old position  */
-				N_UDMI(v,2) = NODE_X(v); 	/* xold */
-				N_UDMI(v,3) = NODE_Y(v);	/* yold		 */
-				
-				/* kinematic motion  */
-				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
-				/* calc g for this node  */				
-				if (meshZone == 'e') {
-					/* flexed position  */
-					/* Message("ynew = g[%i]*a*sin(tparm_ex[%i]) = %f, g[%i] = %f, a = %f, tparm_ex[%i] = %f\n",  */
-					/*		 j, j, g[j]*a*sin(tparm_ex[j]), j, g[j], a, j, tparm_ex[j]); */
-					N_UDMI(v,4) = x + del_x + (g[j]*b*cos(tparm_ex[j]) + b);	/* new x position = current position + forward swimming displacement + kinematic motion */
-					N_UDMI(v,5) = g[j]*a*sin(tparm_ex[j]);						/* new y position = current position + kinematic motion	 */
-					/* unflexed position  */
-					N_UDMI(v,12) = x + del_x + (b*cos(tparm_ex[j]) + b);	/* g[j] term omitted  */
-					N_UDMI(v,13) = a*sin(tparm_ex[j]);						/* g[j] term omitted  */
-				}
-				else if (meshZone == 's') {
-					/* flexed position  */
-					N_UDMI(v,4) = (x-thickness) + del_x + (g[j]*b_sub[j]*cos(tparm_sub[j]) + b);
-					N_UDMI(v,5) = g[j]*a_sub[j]*sin(tparm_sub[j]);
-					/* unflexed position  */
-					N_UDMI(v,12) = (x-thickness) + del_x + (b_sub[j]*cos(tparm_sub[j]) + b);
-					N_UDMI(v,13) = a_sub[j]*sin(tparm_sub[j]);
-				}
-				
-				/* Store new location of flexed tip  */
-				if (NodeIsTip(v) && NewTimeStep() ) 
-				{
-					xTip_temp = N_UDMI(v,4);
-					yTip_temp = N_UDMI(v,5);
-					xTipUnflexed_temp = N_UDMI(v,12);
-					yTipUnflexed_temp = N_UDMI(v,13);
-				}
-
-				/* -- Move nodes --  */
-				NODE_X(v) = N_UDMI(v,4);
-				NODE_Y(v) = N_UDMI(v,5);
-				/*Message0("j:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3)); 
-				Message0("j:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5)); */
-				/* Message0("j:%i  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
-				
-				/* NODE_POS_UPDATED(v); */
-			/* } */
-			/* else */
-			/* { */
-				
-				
-				
-			/* } */
-		}
-	}
-	
-	#endif
-}
-
-/*---------------------------------------------------------------- */
-void Move_Nodes_to_Stored_Positions_debug(Thread *tf, int x_memslot, int y_memslot)
-{
-	#if !RP_HOST
-	face_t f;
-	Node *v;
-	int n;
-	int j = 0;
-	
-	
-	/* -- Move nodes --  */
-	Message("\tMoving nodes to stored positions...\n");
-	j = 0;
-	begin_f_loop(f,tf) {
-		if PRINCIPAL_FACE_P(f,tf) {
-			f_node_loop(f,tf,n) 
-			{
-				v = F_NODE(f,tf,n);
-				
-			/* if (NODE_POS_NEED_UPDATE (v)) {	// this was commented out! may break the simulation, keep an eye out */
-				NODE_X(v) = N_UDMI(v, x_memslot);
-				NODE_Y(v) = N_UDMI(v, y_memslot);
-				Message("I am node %i moving node %i to (%f, %f)\n", myid, j, NODE_X(v), NODE_Y(v));
-				/* NODE_POS_UPDATED(v); */
-
-				j++;
-			}
-		}
-	}
-	end_f_loop(f,tf);
-	
-	#endif
-}
-
-
-
 
 /** Function definitions **/
 
@@ -339,37 +82,30 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	face_t f;
 	Node *v;
 	Node *holdNodes[MAX_NODES];
+	double a, b, d;
+	double a_sub[MAX_NODES], b_sub[MAX_NODES], g[MAX_NODES];
+	double *a_sub_ptr = a_sub;
+	double *b_sub_ptr = b_sub;
 	double sa = 0.0;
 	double sb = 0.0;
 	double sd = 0.0;
 	double sg = 0.0;
-	double a, b, d, a_sub[MAX_NODES], b_sub[MAX_NODES], g[MAX_NODES];
-	double yi, xold, yold, xmax, yAtXmaxOld, yAtXmaxNew;
-	double N = 1.0;
-	int i, j, n;
-	int i1 = 0;
-	int count = 0;
 	double *sa_ptr = &sa;
 	double *sb_ptr = &sb;
 	double *sd_ptr = &sd;
 	double *sg_ptr = &sg;
-	double *a_sub_ptr = a_sub;
-	double *b_sub_ptr = b_sub;
-	double apex_scale_factor, scaled_input;
+	
+	double xold, yold;
+	int i, j, n;
+	int i1 = 0;
 	FILE *fdebug;
-	int firstFlag = 0;
-	double S, Smax, SmaxUnflexed;
-	double *Smax_ptr = &Smax;
+	double SmaxUnflexed;
 	double *SmaxUnflexed_ptr = &SmaxUnflexed;
 	int total_i = 0;
-	double x = Rezero(tf);			/* Rezero() auto syncs value to all comp nodes */
+	double x = Rezero(tf);	
 	int idArray[MAX_NODES][2];
 	int thisID, localj;
-	double coordArray_x_flex[MAX_NODES];
-	double coordArray_y_flex[MAX_NODES];
 	double arclengthArray_unflex[MAX_NODES];
-	/* int jInterpEnd = 0; */
-	
 	
 	/* initialize kinematics arrays  */
 	for (j=0; j < MAX_NODES; j++) 
@@ -381,18 +117,16 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 
 	/* calculate the current values of kinematic functions sa, sb, sd  */
 	/*Message0("\tCalculating kinematics (s-functions):  ");*/
-	Load_sa(tau/PERIOD, sa_ptr);			/* Message("sa = %16.12f\n",sa); */
+	Load_sa(tau/PERIOD, sa_ptr);
 	Load_sb(tau/PERIOD, sb_ptr);
 	Load_sd(tau/PERIOD, sd_ptr);
 	Load_sg(tau/PERIOD, sg_ptr);
-	/*Message0("sa = %lf, sb = %lf, sd = %lf, sg = %lf\n",sa, sb, sd, sg);*/
 	
-	/*Message0("\tCalculating kinematics (a, b, d):  ");*/
 	/* calculate the function values for a, b, d  */
+	/*Message0("\tCalculating kinematics (a, b, d):  ");*/
 	a = ai*(1-sa*pa);
 	b = bi*(1-sb*pb);
 	d = di*(1-sd*pdd);
-	/*Message0("a = %lf, b = %lf, d = %lf\n",a, b, d);*/
 	
 	/* calculate the new position of the margin tip. This is used to find arc length as well as tparm  */
 	tparmTip = acos(d/b);
@@ -409,14 +143,13 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		xTipOld = xTipUnflexed;
 		yTipOld = yTipUnflexed;
 	}
-	Message0("\tReporting tip values: tparmTip = %lf, xTip = %lf, yTip = %lf \n", tparmTip, xTipUnflexed, yTipUnflexed);
+	Message0("\tReporting tip values: xTipUnflexed = %lf, yTipUnflexed = %lf, tparmTip = %lf \n", xTipUnflexed, yTipUnflexed, tparmTip);
+	Message0("\tReporting tip values: xTipUnflexedOld = %lf, yTipUnflexedOld = %lf \n", xTipUnflexedOld, yTipUnflexedOld);
 	
 	
 	/* ----- calculate ARC LENGTHS and SORT NODES from apex to margin ----------  */		
 	Message0("\tCalculating surface arc length... \n");
-	/* PRF_GSYNC(); */
-	i = Get_ArcLengths(tf, meshZone, holdNodes, Smax_ptr, SmaxUnflexed_ptr, idArray,
-			coordArray_x_flex, coordArray_y_flex, arclengthArray_unflex);	/* i = number of nodes on mesh zone */
+	i = Get_ArcLengths(tf, meshZone, holdNodes, SmaxUnflexed_ptr, idArray, arclengthArray_unflex);	/* i = number of nodes on mesh zone */
 	#if PARALLEL
 		total_i = PRF_GISUM1(i);
 	#endif
@@ -426,19 +159,16 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	
 	/*------------ calculate tparm, asub, and bsub ------------ */
 	if (meshZone == 'e') { 
-		/*Message0("\tCalculating initial tparm values... \n");*/
+		Message0("\tCalculating initial tparm values... \n");
 		Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
-		/* Message("Done.\n"); */
+		Message0("\tDone.\n");
 	}
 	else if (meshZone == 's') {
 		if  (N_TIME == 0) 
 		{
 			Message0("\tLoading initial a_sub and b_sub values... \n");
-			Load_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray, 
-						coordArray_x_flex, arclengthArray_unflex);
-			Load_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray, 
-						coordArray_y_flex, arclengthArray_unflex);
-			
+			Load_b_sub(b_sub_ptr, b, holdNodes, total_i, SmaxUnflexed, idArray, arclengthArray_unflex);
+			Load_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray, arclengthArray_unflex);
 			
 			Message0("\tCalculating initial tparm values... \n");
 			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
@@ -460,13 +190,8 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	}
 	else Error("Incorrect meshZone char");
 	
-	/*------------ find flex point (node) ------------ */
-	/* debug */
-	/* Message("\n !!(before) i1 = %i \t i1_ex = %i \t i1_sub = %i \t flexPointFound = %i", i1, i1_ex, i1_sub, flexPointFound); */
-		/* i1 = Get_FlexPoint(meshZone, holdNodes, i, Smax); */
-		/* Message("\n !!(after) i1 = %i \t i1_ex = %i \t i1_sub = %i \t flexPointFound = %i\n", i1, i1_ex, i1_sub, flexPointFound) */
-	 
-	/*Message0("\tFinding flex points... \n");*/
+	/*------------ find flex point (node) ------------ */	 
+	Message0("\tFinding flex points... \n");
 	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
 	
 	/*--- Now that arclength, tparm, flex, etc. have been assigned to --- */
@@ -484,12 +209,11 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		if (myid == thisID)
 		{
 			v = holdNodes[localj];
-			
-			if(NODE_POS_NEED_UPDATE(v))	
+			if (NODE_POS_NEED_UPDATE(v) || (NODE_Y(v) <= 1e-7))
 			{	
 				/* store old position  */
 				N_UDMI(v,2) = NODE_X(v); 	/* xold */
-				N_UDMI(v,3) = NODE_Y(v);	/* yold					 */
+				N_UDMI(v,3) = NODE_Y(v);	/* yold */
 				
 				/* kinematic motion  */
 				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
@@ -530,20 +254,21 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 					iHaveTip = 1;
 				}
 				
-				/* -- Move nodes --  */
-				NODE_X(v) = N_UDMI(v,4);
-				NODE_Y(v) = N_UDMI(v,5);
+				/* -- Move nodes except apex --  */
+				if (NODE_Y(v) > 1e-7)
+				{
+					NODE_X(v) = N_UDMI(v,4);
+					NODE_Y(v) = N_UDMI(v,5);
+				}
+				NODE_POS_UPDATED(v);
 				/** DEBUG * */
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
-				if ((myid == 1) && (meshZone == 's'))
-				{
-					/* Message("\tj:%i  xold = %lf\t\t yold = %lf\n",j, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("\tj:%i  xnew = %lf\t\t ynew = %lf\n",j, N_UDMI(v,4), N_UDMI(v,5)); */
-					/* Message("\tj:%i  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
-				}
-				/* } */
-				NODE_POS_UPDATED(v);
+				/* Message("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid); */
+				/* Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid); */
+				/* Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */ 
+				/* }
+				
 			}
 			else
 			{
@@ -558,12 +283,69 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	#endif
 }
 
+/*---------- Move_Nodes_to_Stored_Positions ----------------------------
+Purpose: Moves the nodes according to kinematic and dynamic motions
+calculated in calcMeshMovement()
+
+Input:	holdNodes	-	array of sorted nodes, from apex to margin
+		i 			-	total number of nodes in this zone
+		i1			-	index of flex point node in holdNodes
+		a_sub		-	kinematic variable
+		b_sub		-	kinematic variable
+		
+Output:	
+---------------------------------------------------------------- */
+void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
+{
+	#if !RP_HOST
+	face_t f;
+	Node *v;
+	int n;
+	int j = 0;
+	
+	
+	/* -- Move nodes --  */
+	Message0("\tMoving nodes to stored positions...\n");
+	j = 0;
+	begin_f_loop(f,tf) {
+		if PRINCIPAL_FACE_P(f,tf) {
+			f_node_loop(f,tf,n) 
+			{
+				v = F_NODE(f,tf,n);
+				
+				if (NODE_POS_NEED_UPDATE(v) && (NODE_Y(v) > 1e-7))
+				{	/* this was commented out! may break the simulation, keep an eye out */
+					NODE_X(v) = N_UDMI(v, x_memslot);
+					NODE_Y(v) = N_UDMI(v, y_memslot);
+					NODE_POS_UPDATED(v);
+					
+					
+					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
+					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
+					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
+					/* Message("node %i:  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
+					j++;
+				}
+				/* else */
+				/* { */
+					/* Message("Already updated node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
+					/* Message("Already updated node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
+					
+				/* } */
+			}
+		}
+	}
+	end_f_loop(f,tf);
+	
+	#endif
+}
+
 
 /*---------- Get_ArcLengths---------------------------------------
 Purpose: Use to sorting approach to order the nodes after 	
 finding the lengths to the tip. Array is sorted from margin to apex,
 holdNodes[0] is the margin, and holdNodes[i-1] is the apex. Arc length
-is stored from Smax at [0] and  S=0 at [i-1].
+is stored from Smax at [0] and  Smin=0 at [i-1].
 
 Input:	Thread *tf			-			
 		Node *holdNodes		-	
@@ -571,85 +353,83 @@ Input:	Thread *tf			-
 		double yTip			-
 ---------------------------------------------------------------- */
 int Get_ArcLengths(Thread *tf, char meshZone, Node *holdNodes[], 
-		double *Smax_ptr, double *SmaxUnflexed_ptr, int idArray[][2],
-		double coordArray_x_flex[], double coordArray_y_flex[], double arclengthArray_unflex[])		
+		double *SmaxUnflexed_ptr, int idArray[][2], double arclengthArray_unflex[])		
 {
+	Message0("\tGet_ArcLengths::first line\n");
 	int i = 0;
+
 	#if !RP_HOST
-	int j, n;
-	double dist, x;
-	face_t f;
-	Node *v, *w;
-	/* double distArray[MAX_NODES]; */
-	/* double idArray[MAX_NODES][2]; */
-	/* double coordArray_x_flex[MAX_NODES]; */
-	/* double coordArray_y_flex[MAX_NODES]; */
-	/* double coordArray_x_unflex[MAX_NODES]; */
-	/* double coordArray_y_unflex[MAX_NODES]; */
-	/* double arclengthArray_flex[MAX_NODES]; */
-	/* double arclengthArray_unflex[MAX_NODES]; */
-	
-	/* Message("\tGet_ArcLengths::Rezero\n"); */
-	x = Rezero(tf);
-	
-	/* Message("\tGet_ArcLengths::Get_NodeDistance\n"); */
-	/* Loop over all mesh nodes on this computational node, put them in holdNodes array, 
-		and store distance to tip if first iteration of sim  */    
-	i = Get_NodeDistances(tf, meshZone, holdNodes, x);
-	
-	/* Message("\tGet_ArcLengths::quickSort\n"); */
-	/* sort mesh nodes and store in holdNodes[0:i] where i is local to this computational node  */
-	quickSort(holdNodes, 0, i-1, meshZone); 
-	
-	
-	#if PARALLEL
-		/* combines local node lists into ordered, global array from which the flexed and unflexed
-			arc lengths are calculated. Other ordered arrays of node info are also avaible as results 
-			(coordinates, radial distance, local arc lengths) but most of this info is stored at each node
-			via N_UDMI and can be accessed using the idArray as a directory/lookup table  */
-		Get_ParArcLengths(meshZone, holdNodes, i, Smax_ptr, SmaxUnflexed_ptr, idArray,
-							coordArray_x_flex, coordArray_y_flex, arclengthArray_unflex);	
+		double xApex;
+		int j, n;
+		double dist;
+		Node *v, *w;
+		
+		/* Message("\tGet_ArcLengths::Rezero\n"); */
+		Message0("\tGet_ArcLengths::Rezero\n");
+		xApex = Rezero(tf);
+		
+		/* Loop over all mesh nodes on this computational node, put them in holdNodes array, 
+			and store distance to tip if first iteration of sim  */
+		Message0("\tGet_ArcLengths::Get_NodeDistance\n");
+		i = Get_NodeDistances(tf, meshZone, holdNodes, xApex);
+		
+		/* sort mesh nodes and store in holdNodes[0:i] where i is local to this computational node  */
+		Message0("\tGet_ArcLengths::quickSort\n");
+		quickSort(holdNodes, 0, i-1, meshZone); 
+		
+		
+		#if PARALLEL
+			/* combines local node lists into ordered, global array from which the flexed and unflexed
+				arc lengths are calculated. Other ordered arrays of node info are also avaible as results 
+				(coordinates, radial distance, local arc lengths) but most of this info is stored at each node
+				via N_UDMI and can be accessed using the idArray as a directory/lookup table  */
+				/**
+				 * ! This is one of the bugged parallel funcs!
+				 * TODO: FIX THIS FUNCTION TO WORK WHEN A PROCESSOR HAS GROUPS OF NODES THAT AREN'T ALL NEXT TO EACH OTHER 
+				 **/
+			Message0("\tGet_ArcLengths::Get_ParArcLengths\n");
+			Get_ParArcLengths(meshZone, holdNodes, i, SmaxUnflexed_ptr, idArray, arclengthArray_unflex);	
+			Message0("\tGet_ArcLengths::Get_ParArcLengths -- complete\n");
+		#endif
+
+		
+		#if !PARALLEL
+			/* do it the old fashioned way...  */
+		
+			/* First iteration of arc length calc  */
+			N_UDMI(holdNodes[0],1) = 0;
+			idArray[0][0] = myid;
+			idArray[0][1] = myid;
+			/* Message("arclength = %lf, dist = %lf \n",N_UDMI(holdNodes[0],1), 0); */
+			for (j = 1; j < i; j++) { 
+				v = holdNodes[j-1];
+				w = holdNodes[j]; 
+				
+				/* calculate distance from previous node  */
+				if (NodeIsTip(w)) 
+				{
+					dist = sqrt(SQR(xTipOld - NODE_X(v)) + SQR(yTipOld - NODE_Y(v)));
+					/* Message("\n**NODE IS TIP -- xTipOld = %lf, yTipOld = %lf***\n", xTipOld, yTipOld); */
+					/* Message("arclength = %lf, dist = %lf \n",N_UDMI(w,1), dist); */
+				}
+				else 
+				{ 
+					dist = sqrt(SQR(NODE_X(w) - NODE_X(v)) + SQR(NODE_Y(w) - NODE_Y(v)));
+					N_UDMI(w,1) = N_UDMI(v,1) + dist;  /* store arc length up to that node (cumulative)  */
+					/* Message("arclength = %lf, dist = %lf \n",N_UDMI(w,1), dist); */
+				}
+				
+				/* Message("j: %i  x = %lf, y = %lf, S = %lf, dist = %lf\n", j, NODE_X(w), NODE_Y(w), N_UDMI(w,1), dist); */
+				
+				idArray[j][0] = myid;
+				idArray[j][1] = j;
+			}
+			
+			/* Now calculate unflexed lengths  */
+			*SmaxUnflexed_ptr = Get_Unflexed_ArcLengths(meshZone, holdNodes, i);
+		#endif
 	#endif
 
-	
-	#if !PARALLEL
-		/* do it the old fashioned way...  */
-	
-		/* First iteration of arc length calc  */
-		N_UDMI(holdNodes[0],1) = 0;
-		idArray[0][0] = myid;
-		idArray[0][1] = myid;
-		/* Message("arclength = %lf, dist = %lf \n",N_UDMI(holdNodes[0],1), 0); */
-		for (j = 1; j < i; j++) { 
-			v = holdNodes[j-1];
-			w = holdNodes[j]; 
-			
-			/* calculate distance from previous node  */
-			if (NodeIsTip(w)) 
-			{
-				dist = sqrt(SQR(xTipOld - NODE_X(v)) + SQR(yTipOld - NODE_Y(v)));
-				*Smax_ptr = N_UDMI(v,1) + dist;
-				/* Message("\n**NODE IS TIP -- S = Smax = %lf, xTipOld = %lf, yTipOld = %lf***\n",*Smax_ptr, xTipOld, yTipOld); */
-				/* Message("arclength = %lf, dist = %lf \n",N_UDMI(w,1), dist); */
-			}
-			else 
-			{ 
-				dist = sqrt(SQR(NODE_X(w) - NODE_X(v)) + SQR(NODE_Y(w) - NODE_Y(v)));
-				N_UDMI(w,1) = N_UDMI(v,1) + dist;  /* store arc length up to that node (cumulative)  */
-				/* Message("arclength = %lf, dist = %lf \n",N_UDMI(w,1), dist); */
-			}
-			
-			/* Message("j: %i  x = %lf, y = %lf, S = %lf, dist = %lf\n", j, NODE_X(w), NODE_Y(w), N_UDMI(w,1), dist); */
-			
-			idArray[j][0] = myid;
-			idArray[j][1] = j;
-		}
-		
-		/* Now calculate unflexed lengths  */
-		*SmaxUnflexed_ptr = Get_Unflexed_ArcLengths(meshZone, holdNodes, i);
-	#endif
-	
-	#endif
 	return i;
 }
 
@@ -866,162 +646,159 @@ int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex
 	int i = 0;
 	
 	#if !RP_HOST
-	face_t f;
-	Node *v;
-	int n, j;
-	int k = 0;
-	double p[ND_ND]; 				/* midpoint from apex to tip  */
-	double Xstar[ND_ND]; 			/* transformed node cartesian coordinates  */
-	double Rstar[ND_ND];			/* transformed node polar coordinates  */
-	
-	/* Message("---------------\nGet_NodeDistances:\n"); */
-	
-	/* i. Draw line from apex to margin. Find midpoint.  */
-	p[0] = 0.5*(xApex + xTipUnflexedOld);
-	p[1] = 0.5*(0.0 + yTipUnflexedOld);		/* yApex is always 0.0 b/c axisymmetry  */
-	
-	/* Message("p[0] = %f, p[1] = %f, xTipUnflexedOld = %f, yTipUnflexedOld = %f\n",  */
-			/* p[0], p[1], xTipUnflexedOld, yTipUnflexedOld); */
-	
-	begin_f_loop(f,tf) {  
-		if PRINCIPAL_FACE_P(f,tf) {
-			f_node_loop(f,tf,n) {
-				
-				v = F_NODE(f,tf,n);
-				
-				if ((N_UDMI(v,0) == 0) || NodeIsTip(v)) {
+		face_t f;
+		Node *v;
+		int n, j;
+		int k = 0;
+		double p[ND_ND]; 				/* midpoint from apex to tip  */
+		double Xstar[ND_ND]; 			/* transformed node cartesian coordinates  */
+		double Rstar[ND_ND];			/* transformed node polar coordinates  */
+		
+		/* Message("---------------\nGet_NodeDistances:\n"); */
+		
+		/* i. Draw line from apex to margin. Find midpoint.  */
+		p[0] = 0.5*(xApex + xTipUnflexedOld);
+		p[1] = 0.5*(0.0 + yTipUnflexedOld);		/* yApex is always 0.0 b/c axisymmetry  */
+		
+		Message0("\t\t p[0] = %f, p[1] = %f, xTipUnflexedOld = %f, yTipUnflexedOld = %f\n", p[0], p[1], xTipUnflexedOld, yTipUnflexedOld); 
+		
+		begin_f_loop(f,tf) {  
+			if PRINCIPAL_FACE_P(f,tf) {
+				f_node_loop(f,tf,n) {
 					
-					holdNodes[i] = v; 		/* store in an array of nodes  */	
+					v = F_NODE(f,tf,n);
+					
+					if ((N_UDMI(v,0) == 0) || NodeIsTip(v)) {
+						
+						holdNodes[i] = v; 		/* store in an array of nodes  */	
 
-					/* Get distances based on angle relative to the rough center of curvature  */
-					/* ii. Define a new coordinate system (x*,y*) where the midpoint p is the origin. iii. Transform. */
-					/* Xstar[0] = NODE_X(v) - p[0]; */
-					/* Xstar[1] = NODE_Y(v) - p[1]; */
-					Xstar[0] = N_UDMI(v,12) - p[0];
-					Xstar[1] = N_UDMI(v,13) - p[1];
-					
-					
-					/* 
-						iv. Define a second transformation function g from cartesian to polar coordinates,
-						   i.e. such that g(x*,y*) -> (r,theta) where g(0,0) = (0,0).
-				    */
-					Rstar[0] = sqrt( SQR(Xstar[0]) + SQR(Xstar[1]) );		/*	radius, r */
-					
-					Rstar[1] = 0.0;											/* angle, theta */
-					if ( (Xstar[1] >= 0.0) && (Rstar[0] != 0.0) )			/* if y>=0 and r!=0 */
-						Rstar[1] = acos( Xstar[0]/Rstar[0] );
-					
-					else if ( Xstar[1] < 0.0 )								/* if y<0 */
-						Rstar[1] = -acos( Xstar[0]/Rstar[0] );
-					
-					else if (Rstar[0] == 0.0)								/* if r=0 */
-						Rstar[1] = 0.0;		/* undefined */
+						/* Get distances based on angle relative to the rough center of curvature  */
+						/* ii. Define a new coordinate system (x*,y*) where the midpoint p is the origin. iii. Transform. */
+						/* Xstar[0] = NODE_X(v) - p[0]; */
+						/* Xstar[1] = NODE_Y(v) - p[1]; */
+						Xstar[0] = N_UDMI(v,12) - p[0];
+						Xstar[1] = N_UDMI(v,13) - p[1];
+						
+						
+						/* 
+							iv. Define a second transformation function g from cartesian to polar coordinates,
+							i.e. such that g(x*,y*) -> R*(r,theta) where g(0,0) = (0,0).
+						*/
+						Rstar[0] = sqrt( SQR(Xstar[0]) + SQR(Xstar[1]) );		/*	radius, r */
+						
+						Rstar[1] = 0.0;											/* angle, theta */
+						if ( (Xstar[1] >= 0.0) && (Rstar[0] != 0.0) )			/* if y>=0 and r!=0 */
+							Rstar[1] = acos( Xstar[0]/Rstar[0] );
+						
+						else if ( Xstar[1] < 0.0 )								/* if y<0 */
+							Rstar[1] = -acos( Xstar[0]/Rstar[0] );
+						
+						else if (Rstar[0] == 0.0)								/* if r=0 */
+							Rstar[1] = 0.0;		/* undefined */
 
-					else
-						Error("\nError defining transformation for arc length calc \n");
-					
-					
-					/* 
-						v. Shift theta values to lie on [-2*pi,0] instead of [-pi, pi] (basically modulo).
-							This gives the apex node the smallest value so that quickSort will correctly order
-							holdNodes from apex to margin, i.e. smallest to largest theta "distance". 
-					 */
-					if (Rstar[1] < 0)
-						Rstar[1] = -(Rstar[1] + 2*M_PI);
-					else
-						Rstar[1] = -Rstar[1];
-					
-					
-					/* vi. Store "distance" (theta = radial distance) to use in sorting the nodes  */
-					if (meshZone == 'e') 
-					{
-						N_UDMI(v,6) = Rstar[1]; /* Store initial distance to apex  */
-						/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	 */
+						else
+							Error("\nError defining transformation for arc length calc \n");
+						
+						
+						/* 
+							v. Shift theta values to lie on [-2*pi,0] instead of [-pi, pi] (basically modulo).
+								This gives the apex node the smallest value so that quickSort will correctly order
+								holdNodes from apex to margin, i.e. smallest to largest theta "distance". 
+						*/
+						if (Rstar[1] < 0)
+							Rstar[1] = -(Rstar[1] + 2*M_PI);
+						else
+							Rstar[1] = -Rstar[1];
+						
+						
+						/* vi. Store "distance" (theta = radial distance) to use in sorting the nodes  */
+						if (meshZone == 'e') 
+						{
+							N_UDMI(v,6) = Rstar[1]; /* Store initial distance to apex  */
+							/* Message0("holdNodes[%i]: x = %lf, y = %lf, N_UDMI(v,6) = dist = %lf, NodeIsTip = %i \n",i, NODE_X(v), NODE_Y(v), N_UDMI(v,6), NodeIsTip(v));	 */
+						}
+						else if (meshZone == 's') 
+						{
+							N_UDMI(v,7) = Rstar[1]; /* Store initial distance to apex  */
+							/* Message0("holdNodes[%i]:  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v)); */
+						}
+						
+						i++;
+						N_UDMI(v,0) = 1;
 					}
-					else if (meshZone == 's') 
-					{
-						N_UDMI(v,7) = Rstar[1]; /* Store initial distance to apex  */
-						/* Message("i:%i  x = %lf, y = %lf, N_UDMI(v,7) = dist = %lf, NodeIsTip = %i \n", i, NODE_X(v), NODE_Y(v), N_UDMI(v,7), NodeIsTip(v)); */
-					}
-					
-					i++;
-					N_UDMI(v,0) = 1;
 				}
 			}
 		}
-	}
-	end_f_loop(f,tf)
-	
+		end_f_loop(f,tf)
 	#endif
-	
+	Message0("\t\t i = %i\n", i);
 	return i;
 }
 
 
-/*---------- Get_ParArcLengths -----------------------------
-Purpose: 
-
-Input:	FILE *stream	-	File stream
+/**---------- Get_ParArcLengths -----------------------------
+ * ! This is one of the bugged parallel funcs!
+ * TODO: FIX THIS FUNCTION TO WORK WHEN A PROCESSOR HAS GROUPS OF NODES THAT AREN'T ALL NEXT TO EACH OTHER 
+ *
 ---------------------------------------------------------------- */
 void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i, 
-						double *Smax_ptr, double *SmaxUnflexed_ptr, int idArray[][2],
-						double coordArray_x_flex[], double coordArray_y_flex[],
+						double *SmaxUnflexed_ptr, int idArray[][2],
 						double arclengthArray_unflex[] )
 {
 	#if RP_NODE
 	
-	/*--- these arrays could be passed back as results but, if they aren't, they maybe should be
-			allocated dynamically to avoid [nodes > MAX_NODES] out-of-bounds memory access errors 
+	/*--- 
+	these arrays could be passed back as results but, if they aren't, they maybe should be
+	allocated dynamically to avoid [nodes > MAX_NODES] out-of-bounds memory access errors 
 	---	 */
-	double distArray[MAX_NODES];
-	/* double coordArray_x_flex[MAX_NODES], coordArray_y_flex[MAX_NODES]; */
+	double coordArray_x_flex[MAX_NODES], coordArray_y_flex[MAX_NODES];
 	double coordArray_x_unflex[MAX_NODES], coordArray_y_unflex[MAX_NODES];
 	double arclengthArray_flex[MAX_NODES];
 	/* double arclengthArray_unflex[MAX_NODES]; */
-	
-	
+
 	int total_i, iHaveNodes = 0, totalHaveNodes;
-	int *this_i, *running_i, *compNodeOrder, *iworkN, iworkj[MAX_NODES], iworkj2[2];
-	double *firstDist, *firstDist2, *dworkN, dworkj[MAX_NODES];
-	Node *shiftNodes[MAX_NODES];
+	int *this_i, *iworkN, iworkj[MAX_NODES];
+	double *dworkN, dworkj[MAX_NODES];
 	int N, M, j, k = 0;
-	int numCompNodesOnZone;
-	int thisID, lastID;
-	double thisDist_flex, thisArcDist_flex;
-	double thisDist_unflex, thisArcDist_unflex;
+	int thisID;
+	double thisArcDist_unflex, thisArcDist_flex;
 	int rows, cols;
 
-	/* Message("\tGet_ParArcLengths::calc initial counters, misc var\n"); */
-	/* calcaulte initial counters, misc variables  */
-	total_i = PRF_GISUM1(i);
-	if (i > 0) 
-		iHaveNodes = 1;
-	totalHaveNodes = PRF_GISUM1(iHaveNodes);
+	int dist_mem_slot;
+	int i_start, j_lcl;
+	double masterArr_dist[MAX_NODES];
+	double masterArr_x_un[MAX_NODES];
+	double masterArr_y_un[MAX_NODES];
+	double masterArr_x_fl[MAX_NODES];
+	double masterArr_y_fl[MAX_NODES];
+	double masterArr_myid[MAX_NODES];
+	double masterArr_jlcl[MAX_NODES];
+	double masterNodeIndex[7*MAX_NODES];
 
-	/* Message("\tGet_ParArcLengths::dynamically allocating memory\n"); */
+	if (meshZone == 'e')
+	{
+		dist_mem_slot = 6;
+	}
+	else
+	{
+		dist_mem_slot = 7;
+	}
+
+	/* calcaulte initial counters, misc variables  */
+	/* Message("\tGet_ParArcLengths::calc initial counters, misc var\n"); */
+	if (i > 0) 					/* if this processor's partition has any mesh nodes from this zone */
+		iHaveNodes = 1;
+	totalHaveNodes = PRF_GISUM1(iHaveNodes);	/* how many processors have mesh nodes from this zone */
+	total_i = PRF_GISUM1(i);	/* total number of nodes documented for the mesh zone */
+
 	/* dynamically allocate memory for arrays that need to be length of compute_node_count  */
+	/* Message("\tGet_ParArcLengths::dynamically allocating memory\n"); */	
 	this_i = (int *)malloc(sizeof(int)*compute_node_count);	/* allocate  */
 	if (this_i == NULL)
 		Error("malloc failed!\n");
 	
-	running_i = (int *)malloc(sizeof(int)*compute_node_count);	/* allocate  */
-	if (running_i == NULL)
-		Error("malloc failed!\n");
-	
-	compNodeOrder = (int *)malloc(sizeof(int)*compute_node_count);	/* allocate  */
-	if (compNodeOrder == NULL)
-		Error("malloc failed!\n");
-	
 	iworkN = (int *)malloc(sizeof(int)*compute_node_count);	/* allocate  */
 	if (iworkN == NULL)
-		Error("malloc failed!\n");
-	
-	firstDist = (double *)malloc(sizeof(double)*compute_node_count);	/* allocate  */
-	if (firstDist == NULL)
-		Error("malloc failed!\n");
-	
-	firstDist2 = (double *)malloc(sizeof(double)*compute_node_count*2);	/* allocate  */
-	if (firstDist2 == NULL)
 		Error("malloc failed!\n");
 	
 	dworkN = (double *)malloc(sizeof(double)*compute_node_count);	/* allocate  */
@@ -1033,31 +810,19 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	for (N = 0; N < compute_node_count; N++)
 	{
 		this_i[N] = 0;
-		running_i[N] = 0;
-		firstDist[N] = 0.0;	/* NOTE distances are in the range [-2*pi, 0] */
-		compNodeOrder[N] = 0;
 		iworkN[N] = 0;
 		dworkN[N] = 0.0;
 	}
 	
+	/* sync an array that holds the # of mesh nodes contained on each processor */
 	this_i[myid] = i;
-	PRF_GISUM(this_i, compute_node_count, iworkN);
-	
-	
-	/* initialize arrays that contain one value per COMPUTATION NODE THAT CONTAINS MESH NODES  */
-	for (N = 0; N < totalHaveNodes; N++)
-	{
-		/* 2D initialization of all elements  */
-		for (M = 0; M < 2; M++)
-			firstDist2[N*2 + M] = 0.0;	/* NOTE -- distances are in the range [-2*pi, 0] */
-	}
-	
+	PRF_GISUM(this_i, compute_node_count, iworkN);	 
+	Message0("\t\t I am Node%i and I have %i mesh nodes of mesh zone %c \n",myid, i, meshZone);
 	
 	/* initialize arrays that contain one value per MESH node */
+	Message0("\t\t Initializing arrays\n");
 	for (j = 0; j < MAX_NODES; j++)
 	{
-		shiftNodes[j] = NULL;
-		distArray[j] = 0.0;
 		idArray[j][0] = 0;
 		idArray[j][1] = 0;
 		coordArray_x_flex[j] = 0.0;
@@ -1068,180 +833,165 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 		arclengthArray_unflex[j] = 0.0;
 		iworkj[j] = 0.0;
 		dworkj[j] = 0.0;
+		
+		masterArr_dist[j] = 0.0;
+		masterArr_x_un[j] = 0.0;
+		masterArr_y_un[j] = 0.0;
+		masterArr_x_fl[j] = 0.0;
+		masterArr_y_fl[j] = 0.0;
+		masterArr_myid[j] = 0;
+		masterArr_jlcl[j] = 0;
+
+		/* 2D initialization of all elements  */
+		for (M = 0; M < 5; M++)
+			masterNodeIndex[j*2 + M] = 0.0;
 	}
 
-	
-	/* 1. Order the computational nodes (that hold mesh nodes in this zone) from apex to tip,
-			ASSUMING ONLY CONTIGUOUS BLOCKS OF MESH NODES ON EACH COMPUTATIONAL NODE!  */
-	
-	/* 1a. get the radial distance of the first mesh node on each comp node  */
+	/**
+	 * TODO: 1. populate masterNodeIndex w/ the following columns:
+	 * TODO: dist, NODE_X, NODE_Y, myid, holdNodes index
+	 * !CAN'T SYNC 2D ARRAYS or ARRAYS! Limitation of Fluent...
+	 **/
+	Message0("\t\t Populating masterArr vectors\n");
+	i_start = 0;
 	if (iHaveNodes)
 	{
-		if (meshZone == 'e')
-			firstDist[myid] = N_UDMI(holdNodes[0], 6);
-		else
-			firstDist[myid] = N_UDMI(holdNodes[0], 7);
+		for (N = 0; N < myid; N++)
+		{
+			i_start = i_start + this_i[N];
+		}
+
+		for (j = i_start; j < i_start + i; j++)
+		{
+			j_lcl = j - i_start;
+			masterArr_dist[j] = N_UDMI(holdNodes[j_lcl], dist_mem_slot);
+			masterArr_x_un[j] = N_UDMI(holdNodes[j_lcl], 12);
+			masterArr_y_un[j] = N_UDMI(holdNodes[j_lcl], 13);
+			masterArr_x_fl[j] = NODE_X(holdNodes[j_lcl]);
+			masterArr_y_fl[j] = NODE_Y(holdNodes[j_lcl]);
+			masterArr_myid[j] = (double) myid;
+			masterArr_jlcl[j] = (double) j_lcl;
+
+			if ( NodeIsTip(holdNodes[j_lcl]) )
+			{
+				/* Message0("\t\t Adding tip to masterArr! N_UDMI(v,6) = %lf, N_UDMI(v,7) = %lf\n",N_UDMI(holdNodes[j_lcl],6), N_UDMI(holdNodes[j_lcl],7)); */
+				masterArr_x_un[j] = xTipUnflexedOld;
+				masterArr_y_un[j] = yTipUnflexedOld;
+				masterArr_x_fl[j] = xTipOld;
+				masterArr_y_fl[j] = yTipOld;
+			}
+		}
 	}
-	PRF_GRSUM(firstDist, compute_node_count, dworkN);
-	
-	/* for (N = 0; N < compute_node_count; N++) */
-		/* Message("firstDist[%i] = %f\n", N, firstDist[N]); */
-	/* Message("\n"); */
-	
-	
-	/* 1b. populate 2D array w/ firstDist value (above) and the corresponding comp node ID  */
-	j = 0;
-	for (N = 0; N < totalHaveNodes; N++)
-	{
-		/* scan until you find a computational node ID that has mesh nodes  */
-		while (this_i[j] == 0 && j < compute_node_count)
-			j++;	
-		
-		firstDist2[N*2 + 0] = firstDist[j];	/* store this firstDist  */
-		firstDist2[N*2 + 1] = (double) j;	/* store this ID  */
-		
-		j++; 	/* next for-loop iteration, start at the next ID   */
-		
-		/* Message("firstDist[%i][] = [%f][%f]\n", N, firstDist2[N*2 + 0], firstDist2[N*2 + 1]); */
+	Message0("\t\t Syncing masterArr vectors\n");
+	PRF_GRSUM(masterArr_dist, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_x_un, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_y_un, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_x_fl, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_y_fl, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_myid, MAX_NODES, dworkj);
+	PRF_GRSUM(masterArr_jlcl, MAX_NODES, dworkj);
+
+	/* assemble vectors into one master array for sorting */
+	Message0("\t\t Assembling masterArr \n");
+	cols = 7;
+	for (j = 0; j < total_i; j++)
+	{	
+		masterNodeIndex[j*cols + 0] = masterArr_dist[j];
+		masterNodeIndex[j*cols + 1] = masterArr_x_un[j];
+		masterNodeIndex[j*cols + 2] = masterArr_y_un[j];
+		masterNodeIndex[j*cols + 3] = masterArr_x_fl[j];
+		masterNodeIndex[j*cols + 4] = masterArr_y_fl[j];
+		masterNodeIndex[j*cols + 5] = masterArr_myid[j];
+		masterNodeIndex[j*cols + 6] = masterArr_jlcl[j];
 	}
-	
-	/* 1c. Sort the 2D array so the order goes from apex mesh nodes to tip mesh nodes 
+
+	/**
+	 * TODO: 2. sort masterNodeIndex by dist using 2D bubble sort and reorder the vectors
+	 **/
+	/* sort the 2D array so the order goes from apex mesh nodes to tip mesh nodes 
 			(i.e. ascending radial distance)  */
-	bubbleSort_double2D(firstDist2, totalHaveNodes, 2); /* (array, rows, cols). This function should work for any dimension array, in general, after switched from [][] format */
-	/* for (N = 0; N < totalHaveNodes; N++) */
-		/* Message("firstDist[%i][] = [%f][%f]\n", N, firstDist2[N*2 + 0], firstDist2[N*2 + 1]); */
-	
+	Message0("\t\t Sorting masterArr \n");
+	bubbleSort_double2D(masterNodeIndex, total_i, cols, 'a'); 
 
-	/* 2. Create a running sum of mesh nodes from comp node0 to nodeN  */
-	for (N = 1; N < totalHaveNodes; N++)
-	{
-		thisID = firstDist2[N*2 + 1];
-		lastID = firstDist2[(N-1)*2 + 1];
-		running_i[thisID] = running_i[lastID] + this_i[lastID]; /* basically, this array holds the zone index of the first mesh node on each partition */
+	Message0("\t\t Breaking masterArr back into vectors \n");
+	for (j = 0; j < total_i; j++)
+	{	
+		masterArr_dist[j] = masterNodeIndex[j*cols + 0];
+		masterArr_x_un[j] = masterNodeIndex[j*cols + 1];
+		masterArr_y_un[j] = masterNodeIndex[j*cols + 2];
+		masterArr_x_fl[j] = masterNodeIndex[j*cols + 3];
+		masterArr_y_fl[j] = masterNodeIndex[j*cols + 4];
+		masterArr_myid[j] = masterNodeIndex[j*cols + 5];
+		masterArr_jlcl[j] = masterNodeIndex[j*cols + 6];
+
+		idArray[j][0] = (int) masterArr_myid[j];
+		idArray[j][1] = (int) masterArr_jlcl[j];
 	}
-	for (N = 0; N < compute_node_count; N++)
-		/*Message0("\trunning_i[%i] = %i\n", N, running_i[N] );*/
-	
-	/* 3. Create glabal arrays (i.e. contain info from all mesh nodes, in order, as they would appear
-			if run as a serial process)  */
-	if (iHaveNodes)
-	{
-		Message0("\tI am node %i and have %i/%i mesh elements on this zone.\n", myid, this_i[myid], total_i);
-		for (j = 0; j < this_i[myid]; j++)
-		{
-			/* 3a. Shift holdNodes such that each node in the zone occupies a 
-			unique array index  */
-			shiftNodes[running_i[myid] + j] = holdNodes[j];
-			/* Message("I am node %i filling shiftNodes[%i] with holdNodes[%i]\n",  */
-				/* myid, running_i[myid] + j, j); */
-			
-			/* 3b. Log the corresponding node ID and local holdNodes index  */
-			idArray[running_i[myid] + j][0] = myid;
-			idArray[running_i[myid] + j][1] = j;
-			/* Message("I am node %i filling idArray[%i][] with [%i][%i]\n",  */
-				/* myid, running_i[myid] + j, idArray[running_i[myid] + j],j); */
-			
-			/* 3c. Create corresponding array of distances  */
-			if (meshZone == 'e')
-				distArray[running_i[myid] + j] = N_UDMI(holdNodes[j],6);
-			else
-				distArray[running_i[myid] + j] = N_UDMI(holdNodes[j],7);
-			
-			/* 3d. Create corresponding array of (x,y) coordinates  */
-			if ( NodeIsTip(holdNodes[j]) )
-			{
-				coordArray_x_flex[running_i[myid] + j] = xTipOld;	/* Although this should be true, is also depends on xTipOld being calc'd correctly! */
-				coordArray_y_flex[running_i[myid] + j] = yTipOld;
-				
-				coordArray_x_unflex[running_i[myid] + j] = xTipUnflexedOld;
-				coordArray_y_unflex[running_i[myid] + j] = yTipUnflexedOld;
-			}
-			else
-			{
-				coordArray_x_flex[running_i[myid] + j] = NODE_X( holdNodes[j] );
-				coordArray_y_flex[running_i[myid] + j] = NODE_Y( holdNodes[j] );
-				
-				coordArray_x_unflex[running_i[myid] + j] = N_UDMI( holdNodes[j], 12 );
-				coordArray_y_unflex[running_i[myid] + j] = N_UDMI( holdNodes[j], 13 );
-			}
-			/* Message("\tI am node %i filling coordArray_flex[%i] with (%f, %f)\n",  */
-					/* myid, running_i[myid] + j, NODE_X(holdNodes[j]), NODE_Y(holdNodes[j]) ); */
-		}
-	}
-	else
-		Message0("\tI am node %i and have 0/%i mesh elements on this zone. ", myid, total_i);
-	
-	/* sync  */
-	for (j=0; j < total_i; j++) PRF_GISUM(idArray[j], 2, iworkj2);
-	/* PRF_GISUM(idArray[j], MAX_NODES, iworkj); */
-	PRF_GRSUM(distArray, MAX_NODES, dworkj);
-	PRF_GRSUM(coordArray_x_flex, MAX_NODES, dworkj);		/* could convert this to 2D array like idArray */
-	PRF_GRSUM(coordArray_y_flex, MAX_NODES, dworkj);
-	PRF_GRSUM(coordArray_x_unflex, MAX_NODES, dworkj);		/* could convert this to 2D array like idArray */
-	PRF_GRSUM(coordArray_y_unflex, MAX_NODES, dworkj);
-	
-	/** DEBUG * */
-	if ( meshZone == 's')
-	{
-		for (j = 0; j < total_i; j++)
-		{
-			/* Message("idArray[%i][0] = %i\t", j, idArray[j][0] ); */
-			/* Message("distArray[%i] = %f\t", j, distArray[j] ); */
-			/* Message("coordArray_flex[%i] = (%f, %f)\t", j, coordArray_x_flex[j], coordArray_y_flex[j] ); */
-			/* Message("coordArray_unflex[%i] = (%f, %f)\n", j, coordArray_x_unflex[j], coordArray_y_unflex[j] ); */
-		}
-	}
-	
-	/* 3e. Create global FLEXED and UNFLEXED arc length array for this zone  */
+
+	/**
+	 * TODO: 3. Calc flexed and unflexed arclengths
+	 * ? Are the old outputs actually used?
+	 * ? *Smax_ptr and Smax -- NO -> deleted
+	 * ? *SmaxUnflexed_ptr and SmaxUnflexed -- YES
+	 * ? idArray[][2] -- YES
+	 * ? coordArray_x_flex[] -- Load_b_sub? NOT USED external to this function --> del
+	 * ? coordArray_y_flex[] -- Load_a_sub? NOT USED external to this function --> del
+	 * ? arclengthArray_unflex[] -- YES (by Load_a/b_sub)
+	 * ? arclengthArray_flex[]-->N_UDMI(v, 1) -- NO? But keeping it for now for simplicity
+	 **/
+	Message0("\t\t Calculating arc lengths \n");
 	for (j = 1; j < total_i; j++)
 	{	
-		/* Flexed  */
-		thisArcDist_flex = sqrt( SQR(coordArray_x_flex[j] - coordArray_x_flex[j-1]) + 
-								SQR(coordArray_y_flex[j] - coordArray_y_flex[j-1]) );
-		arclengthArray_flex[j] = arclengthArray_flex[j-1] + thisArcDist_flex;
-		
-		
 		/* Unflexed  */
-		thisArcDist_unflex = sqrt( SQR(coordArray_x_unflex[j] - coordArray_x_unflex[j-1]) + 
-								SQR(coordArray_y_unflex[j] - coordArray_y_unflex[j-1]) );
+		thisArcDist_unflex = sqrt( SQR(masterArr_x_un[j] - masterArr_x_un[j-1]) + 
+								SQR(masterArr_y_un[j] - masterArr_y_un[j-1]) );
 		arclengthArray_unflex[j] = arclengthArray_unflex[j-1] + thisArcDist_unflex;
 
-		/** DEBUG * */
-		/* if (meshZone == 's') */
-		/* { */
-			/* Message0("\tj:%i  this_flex = %f, AL_flex = %f, this_unflex = %f, ALunflex = %f\n", j, */
-				/* thisArcDist_flex, arclengthArray_flex[j], thisArcDist_unflex, arclengthArray_unflex[j]); */
-		/* } */
-		
-		/* 3f. locally save the arc length to the corresponding node in its node memory (N_UDMI)  */
-		thisID = idArray[j][0];
+		/* Flexed  */
+		thisArcDist_flex = sqrt( SQR(masterArr_x_fl[j] - masterArr_x_fl[j-1]) + 
+								SQR(masterArr_y_fl[j] - masterArr_y_fl[j-1]) );
+		arclengthArray_flex[j] = arclengthArray_flex[j-1] + thisArcDist_flex;
+	}
+
+	Message0("\t\t Printing out idArray:\n");
+	for (j = 0; j < total_i; j++)
+	{	
+		thisID = (int) masterArr_myid[j];
+		j_lcl = (int) masterArr_jlcl[j];
+
+		/* Message0("\t\t j:%i  idArray = [%i][%i]  dist = %lf\n", j, thisID, j_lcl, masterArr_dist[j]); */
+	}
+
+	Message0("\t\t Saving locally \n");
+	/* save locally */
+	for (j = 0; j < total_i; j++)
+	{	
+		thisID = (int) masterArr_myid[j];
+		j_lcl =  (int) masterArr_jlcl[j];
 		if (myid == thisID)
 		{
-			N_UDMI(shiftNodes[j], 1) = arclengthArray_flex[j];
-			N_UDMI(shiftNodes[j], 14) = arclengthArray_unflex[j];
-			
-			/* 3g. Last index in global array is the tip node. Mark it as the tip  */
-			/* if (j == total_i - 1) */
-				/* NodeIsTip(shiftNodes[j]);		//  if (NodeIsTip(shiftNodes[j])) */
+			N_UDMI(holdNodes[j_lcl], 1) = arclengthArray_flex[j];
+			N_UDMI(holdNodes[j_lcl], 14) = arclengthArray_unflex[j];
 		}
 	}
+
+
+	/* Debug */
+	for (j = 0; j < total_i; j++)
+	{
+		/* Message0("\t\t arclengthArray_unflex[%i] = %10.10f (dist = %lf, x = %lf, y = %lf)\n", j, arclengthArray_unflex[j], masterArr_dist[j], masterArr_x_un[j], masterArr_y_un[j] );  */
+	}
 	
-	/* 3g. Last index in global array is the tip node. Get Smax, SmaxUnflexed  */
-	*Smax_ptr = arclengthArray_flex[total_i - 1];
+	/**
+	 * TODO: 4. Calc SmaxUnflexed
+	 **/
+
+	/* Last index in global array is the tip node. Get SmaxUnflexed  */
 	*SmaxUnflexed_ptr = arclengthArray_unflex[total_i - 1];
-	
-	/* Message0("Smax = %f, SmaxUnflexed = %f\n", *Smax_ptr, *SmaxUnflexed_ptr); */
-	
-	/* for (j = 0; j < total_i; j++) */
-		/* Message("arclengthArray_flex[%i] = %lf\n", j, arclengthArray_flex[j] ); */
-	
-	
-	/* 4. deallocate dynamic memory  */
+	Message0("\t\t Smaxunflexed = %lf\n", *SmaxUnflexed_ptr);
+
+	/* deallocate dynamic memory  */
 	free(this_i);
-	free(running_i);
-	free(firstDist);
-	free(firstDist2);
-	free(compNodeOrder);
 	free(iworkN);
 	free(dworkN);
 
@@ -1370,7 +1120,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v,9) = 1;				/* old node flag (I guess assume that it is never remeshed?) */
 			
 			/** diagnostics * */
-			/* Message("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
+			Message0("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1390,8 +1140,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 					
 					/** diagnostics * */
-					/* Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", */
-						/* j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
+					Message0("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 				}
 			}
 		}
@@ -1432,7 +1181,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* 3a. Handle new nodes added via remeshing/adaption  */
 					if (!oldNode_Arr[j]) {	
-						Message("\tNew ex node detected\n");
+						Message0("\tNew ex node detected\n");
 						newNodeFlag = 1;
 						
 						/* new node added from remeshing, thus has no tparm_sub_old value! Must estimate it.  */
@@ -1476,11 +1225,20 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 						
 						tparm_old_Arr[j] = tparm_old_Arr[iL] + (double)(j-iL)/(iR-iL) * (tparm_old_Arr[iR] - tparm_old_Arr[iL]);
 						N_UDMI(v,8) = tparm_old_Arr[j];
-						Message("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
+						Message0("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
 						
 					}
 					
 					/* calculate the new tparm value  */
+					if (N_TIME == 1)
+					{
+						tparm_ex[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+						N_UDMI(v,15) = Si/SmaxUnflexed;
+					}
+					else
+					{
+						tparm_ex[j] = tparm_old_Arr[j] + N_UDMI(v,15) * (tparmTip - tparmTipOld); 
+					}
 					/* tparm_ex[j] = tparm_old_Arr[j] + (double)j/(nNodes-1)*(tparmTip - tparmTipOld);  */
 					tparm_ex[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
 					N_UDMI(v,10) = tparm_ex[j];
@@ -1518,7 +1276,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v, 9) = 1;				/* old node flag */
 			
 			/* diagnostics  */
-			/* Message("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(holdNodes[0],10), N_UDMI(holdNodes[0],8), NODE_X(holdNodes[0]), NODE_Y(holdNodes[0])); */
+			Message0("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(holdNodes[0],10), N_UDMI(holdNodes[0],8), NODE_X(holdNodes[0]), NODE_Y(holdNodes[0]));
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1554,7 +1312,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 								
 								/* old method  */
 								/* interp tparm method (NEEDS TO UPDATE B_SUB TOO!)  */
-								Message("Invalid b_sub value at j = %i. Interpolating tparm_sub from neighbors.\n",j);
+								Message0("Invalid b_sub value at j = %i. Interpolating tparm_sub from neighbors.\n",j);
 								tparm_sub[j] = M_PI + (double)j/(j+1) * (tparm_sub[j+1]-M_PI);	/* assuming this can only happen near j=0 (i.e. apex node) */
 								/* dif = (tparm_sub[j]-tparmTip)/(tparm_sub[0]-tparmTip) * thickness; */
 								/* b_sub[j] = b - dif; */
@@ -1566,11 +1324,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 							N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 							
 							/* diagnostics  */
-							if (j<10)
-							{
-								Message("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n",
-									j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
-							}
+							Message0("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
 						}
 						
 						/* tparm calc LOOP 2 -- check tparm  */
@@ -1630,7 +1384,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* 3a. Handle new nodes added via remeshing/adaption  */
 					if (!oldNode_Arr[j]) {
-						Message("New sub node detected\n");
+						Message0("New sub node detected\n");
 						newNodeFlag = 1;
 						
 						/* new node added from remeshing, thus has no tparm_sub_old value! Must estimate it.  */
@@ -1674,12 +1428,20 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 						
 						tparm_old_Arr[j] = tparm_old_Arr[iL] + (double)(j-iL)/(iR-iL) * (tparm_old_Arr[iR] - tparm_old_Arr[iL]);
 						N_UDMI(v,8) = tparm_old_Arr[j];
-						Message("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
+						Message0("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
 					
 					}
 					
 					/* calculate the new tparm value  */
-					tparm_sub[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+					if (N_TIME == 1)
+					{
+						tparm_sub[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+						N_UDMI(v,15) = Si/SmaxUnflexed;
+					}
+					else
+					{
+						tparm_sub[j] = tparm_old_Arr[j] + N_UDMI(v,15) * (tparmTip - tparmTipOld); 
+					}
 					/* tparm_sub[j] = tparm_old_Arr[j] + (double)j/(nNodes-1)*(tparmTip - tparmTipOld); */
 					N_UDMI(v,10) = tparm_sub[j];
 					
@@ -1814,9 +1576,9 @@ void Get_b_sub(double *b_sub_ptr, double b, Node *holdNodes[], int nNodes,
 /*---------- Get_FlexPoint -------------------------------------
 Purpose: Returns the tparm value for both the ex and sub surfaces
 
-Input:	holdNodes	-	array of sorted nodes, from apex to margin
-		i 			-	total number of nodes in this zone
-		Smax		-	maximum arc length of this zone		
+Input:	holdNodes			-	array of sorted nodes, from apex to margin
+		i 					-	total number of nodes in this zone
+		SmaxUnflexed		-	maximum arc length of this zone	BEFORE flexing	
 		
 Output:		i1		-	index of holdNodes where flex starts
 ---------------------------------------------------------------- */
@@ -1829,7 +1591,7 @@ void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnfl
 	int lastOldNode, nextOldNode, iL, iR, iL_is_oldNode, iR_is_oldNode, oldNode;
 	Node *v;
 	double Si;
-	double Sflex = pg*SmaxUnflexed;		/* Smax here needs to be the UNFLEXED Smax! i.e. N_UDMI(holdNodes[i],14) */
+	double Sflex = pg*SmaxUnflexed;
 	double flexpct_iL, flexpct_iR, flexpct_j, flexspacing_iL, flexspacing_iR, flexspacing_j;
 	int thisID, localj;
 	double dworkj[MAX_NODES];
@@ -1923,66 +1685,12 @@ void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnfl
 }
 
 
-/*---------- Move_Nodes_to_Stored_Positions ----------------------------
-Purpose: Moves the nodes according to kinematic and dynamic motions
-calculated in calcMeshMovement()
-
-Input:	holdNodes	-	array of sorted nodes, from apex to margin
-		i 			-	total number of nodes in this zone
-		i1			-	index of flex point node in holdNodes
-		a_sub		-	kinematic variable
-		b_sub		-	kinematic variable
-		
-Output:	
----------------------------------------------------------------- */
-void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
-{
-	#if !RP_HOST
-	face_t f;
-	Node *v;
-	int n;
-	int j = 0;
-	
-	
-	/* -- Move nodes --  */
-	Message0("\tMoving nodes to stored positions...\n");
-	j = 0;
-	begin_f_loop(f,tf) {
-		if PRINCIPAL_FACE_P(f,tf) {
-			f_node_loop(f,tf,n) 
-			{
-				v = F_NODE(f,tf,n);
-				
-				if (NODE_POS_NEED_UPDATE (v)) {	/* this was commented out! may break the simulation, keep an eye out */
-					NODE_X(v) = N_UDMI(v, x_memslot);
-					NODE_Y(v) = N_UDMI(v, y_memslot);
-					NODE_POS_UPDATED(v);
-					
-					
-					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
-					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
-					/* Message("node %i:  delx = %lf\t\t dely = %lf\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3)); */
-					j++;
-				}
-				/* else */
-				/* { */
-					/* Message("Already updated node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
-					/* Message("Already updated node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
-					
-				/* } */
-			}
-		}
-	}
-	end_f_loop(f,tf);
-	
-	#endif
-}
 
 
 
 /**---------- Store_OldKinematicVars ---------------------------
-* TODO: Clean this up and make sure this isn't part of the problem w/ running on n>2 nodes
+* TODO 1: Clean this up and make sure this isn't part of the problem w/ running on n>2 nodes
+* TODO 2: Store the old nodal coordinates here in N_UDMI(v,2) and N_UDMI(v,3) 
 ---------------------------------------------------------------- */
 void Store_OldKinematicVars(void)
 {
@@ -2014,7 +1722,7 @@ void Store_OldKinematicVars(void)
 		yTipUnflexed = PRF_GRSUM1(yTipUnflexed_temp); 	/* = yTipUnflexed_temp + 0.0 + 0.0 ... + 0.0 */
 	}
 	else
-		Error("Tip either found on >1 node OR it was not found not at all!");
+		Error("Tip either found on >1 node OR it was not found not at all! (iHaveTip = %i, PRF_GRSUM1(iHaveTip) = %i)", iHaveTip, PRF_GRSUM1(iHaveTip));
 	
 	iHaveTip = 0;
 	

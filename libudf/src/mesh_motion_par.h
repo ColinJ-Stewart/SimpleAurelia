@@ -28,8 +28,7 @@ void Calc_Mesh_Movement(Thread *tf, char meshZone, double tau, double del_x, dou
 void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_x);
 
 int Get_ArcLengths(Thread *tf, char meshZone, Node *holdNodes[], 
-		double *Smax_ptr, double *SmaxUnflexed_ptr, int idArray[][2],
-		double coordArray_x_flex[], double coordArray_y_flex[], double arclengthArray_unflex[]);
+		double *SmaxUnflexed_ptr, int idArray[][2], double arclengthArray_unflex[]);
 					
 double Get_Unflexed_ArcLengths(char meshZone, Node *holdNodes[], int nNodes);
 
@@ -38,9 +37,7 @@ double Rezero(Thread *tf);
 int Get_NodeDistances(Thread *tf, char meshZone, Node *holdNodes[], double xApex);
 
 void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i, 
-						double *Smax_ptr, double *SmaxUnflexed_ptr, int idArray[][2],
-						double coordArray_x_flex[], double coordArray_y_flex[],
-						double arclengthArray_unflex[] );
+		double *SmaxUnflexed_ptr, int idArray[][2], double arclengthArray_unflex[] );
 						
  /* void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,  */
 					 /* double distArray[],int idArray[][2],  */
