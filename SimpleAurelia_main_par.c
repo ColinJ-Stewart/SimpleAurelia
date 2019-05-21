@@ -165,7 +165,13 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		/* --------- INITIALIZE VARS ---------  */
 		char meshZone = '\0';
 		int meshZoneTemp;
-		
+		FILE *fdebug;
+		double del_x = 0.0;
+		double x = 0.0;
+		double vel = 0.0;
+		double fx_tot = 0.0;
+		int k = 0;
+
 		/* ------ PRINT TIME STEP HEADER ---------  */
 		Print_Timestep_Header();
 	#endif
@@ -183,6 +189,11 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		int meshZoneTemp;
 		double Sat;
 		int zone_ID;
+		int k;
+		double x;
+		#if !PARALLEL
+			FILE *fdebug;
+		#endif
 		
 		/* Message("Node%i initializing vars... \n", myid); */
 		tf = DT_THREAD(dt);
@@ -210,6 +221,11 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 			Message0("\nNew time step. Reinitializing node memory\n");
 			Reinit_node_mem_int(tf_ex, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
 			Reinit_node_mem_int(tf_sub, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
+			
+			if (N_TIME == 1)
+			{
+				Store_OldKinematicVars();
+			}
 		}
 			
 		/* ------------- TIME  --------------  */	
@@ -221,31 +237,35 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		fx_ex = Get_Force2_x(tf_ex);			
 		fx_sub = Get_Force2_x(tf_sub);
 		fx_tot = fx_ex + fx_sub;
-		if ( NewTimeStepForThisZone(meshZone) )
+		/* if ( NewTimeStepForThisZone(meshZone) ) */
 			Message0("Force_x: %lf, fx_ex: %lf, fx_sub: %lf\n", fx_tot, fx_ex, fx_sub);	
 		
 		/* ------ SWIMMING DYNAMICS -------  */
-		if((LET_IT_SWIM) && (N_TIME > 2)) 
+		if((LET_IT_SWIM) && (N_TIME > 0)) 
 		{
-			if ( NewTimeStepForThisZone(meshZone) )
+			/* if ( NewTimeStepForThisZone(meshZone) ) */
 				Message0("Calculating swimming speed... \n");	
-			vel = Get_BodyVelocity(tf, meshZone, fx_tot, del_x_ptr);
-			if ( NewTimeStepForThisZone(meshZone) )
-				Message0("\tvel_x = %lf, del_x = %lf\n", vel, del_x);	/** make Message0 after DEBUG **/
+			/* vel = Get_BodyVelocity(tf, meshZone, fx_tot, del_x_ptr); */
+			vel = Get_BodyVelocity_Implicit(tf, meshZone, fx_tot, del_x_ptr);
+			/* if ( NewTimeStepForThisZone(meshZone) ) */
+				Message0("\tvel_x = %lf, del_x = %10.10f\n", vel, del_x);	/** make Message0 after DEBUG **/
 		}
+		k = Get_k_At_End(meshZone);
 
 		/* ------ MESH MOTION/KINEMATICS -------  */
-		if ( NewTimeStepForThisZone(meshZone) )
-		{	
+		/* if ( NewTimeStepForThisZone(meshZone) ) */
+		/* {	 */
 			Message0("Moving jellyfish (node %i)... \n", myid);
-		}
+		/* } */
 		Calc_Mesh_Movement(tf, meshZone, tauSim, del_x, vel);
 
+		x = Rezero(tf);
+
 		/* ------ STORE THIS TIME STEP # -------  */
-		if ( NewTimeStepForThisZone(meshZone) )
-		{
+		/* if ( NewTimeStepForThisZone(meshZone) ) */
+		/* { */
 			Message0("---FINISHED GRID MOTION UDF---\n\n");
-		}
+		/* } */
 		
 	#endif 
 	
@@ -254,6 +274,16 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 	meshZoneTemp = meshZone;
 	node_to_host_int_1(meshZoneTemp);
 	meshZone = meshZoneTemp;
+
+	node_to_host_real_1(del_x);
+	node_to_host_real_1(x);
+	node_to_host_real_1(vel);
+	node_to_host_real_1(fx_tot);
+	node_to_host_int_1(k);
+
+	node_to_host_real_1(del_x_k);
+	node_to_host_real_1(nextVel_k);
+	node_to_host_real_1(fx_k);
 	
 	
 	#if RP_HOST
@@ -278,6 +308,55 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 									0, 0, 0, 0, 
 									0, 0, 0, 0, 
 									0);
+		}
+		if((N_TIME == 0) && (NewTimeStepForThisZone('e'))) 
+		{
+			/* ------------ debug ----------*/
+			/* fdebug = fopen("debug.txt","w+");
+			fprintf(fdebug,"Time (s)\t");
+			fprintf(fdebug,"Iteration\t");
+			fprintf(fdebug,"del_x\t");
+			fprintf(fdebug,"x\t");
+			fprintf(fdebug,"nextVel(k)\t");
+			fprintf(fdebug,"fx(k)\n");
+			
+			fprintf(fdebug,"%f\t", CURRENT_TIME);
+			fprintf(fdebug,"%i\t", k);
+			fprintf(fdebug,"%10.12f\t", del_x);
+			fprintf(fdebug,"%10.12f\t", x);
+			fprintf(fdebug,"%10.12f\t", vel);
+			fprintf(fdebug,"%10.12f\n", fx_tot);
+			fclose(fdebug); */
+
+			fdebug = fopen("debug.txt","w+");
+			fprintf(fdebug,"Time (s)\t");
+			fprintf(fdebug,"Iteration\t");
+			fprintf(fdebug,"del_x_k\t");
+			fprintf(fdebug,"x\t");
+			fprintf(fdebug,"nextVel_k\t");
+			fprintf(fdebug,"fx_k\n");
+			
+			fprintf(fdebug,"%f\t", CURRENT_TIME);
+			fprintf(fdebug,"%i\t", k);
+			fprintf(fdebug,"%10.12f\t", del_x_k);
+			fprintf(fdebug,"%10.12f\t", x);
+			fprintf(fdebug,"%10.12f\t", nextVel_k);
+			fprintf(fdebug,"%10.12f\n", fx_k);
+			fclose(fdebug);
+			/* ------------ debug ----------*/
+		}
+		else if (meshZone == 'e')
+		{
+			/* ------------ debug ----------*/
+			fdebug = fopen("debug.txt","a+");
+			fprintf(fdebug,"%f\t", CURRENT_TIME);
+			fprintf(fdebug,"%i\t", k);
+			fprintf(fdebug,"%10.12f\t", del_x_k);
+			fprintf(fdebug,"%10.12f\t", x);
+			fprintf(fdebug,"%10.12f\t", nextVel_k);
+			fprintf(fdebug,"%10.12f\n", fx_k);
+			fclose(fdebug);
+			/* ------------ debug ----------*/
 		}
 
 	#endif
@@ -391,7 +470,7 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double *P_thrust_B_ptr = &P_thrust_B;
 		double *P_drag_SMC_ptr = &P_drag_SMC;
 		double *P_drag_B_ptr = &P_drag_B;
-		/* Message0("\n---NODE%i EXECUTE AT END---\n", myid); */
+		Message0("\n---NODE%i EXECUTE AT END---\n", myid);
 		Message0("Force_x at end: %f\n",fx_tot);	
 		
 		Compute_Power_Out(vel, 0.0, f_thrust_SMC_ptr, 	f_thrust_B_ptr, f_drag_SMC_ptr, 	f_drag_B_ptr, 
@@ -437,8 +516,11 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 	
 	/* SERIAL/NODES store the old values of tparm, tip coords, etc.  */
 	#if !RP_HOST
-		Store_OldKinematicVars();
-		Store_OldForce(fx_tot);
+		if (N_TIME > 1)
+		{
+			Store_OldKinematicVars();
+		}
+		/* Store_OldForce(fx_tot, vel, x); */
 	#endif
 	
 	Message0("---FINISHED EXECUTE AT END UDF---\n");

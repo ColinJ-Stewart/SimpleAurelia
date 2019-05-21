@@ -38,6 +38,8 @@ static double tparm_sub_old[MAX_NODES];
 static int i1_ex = -1;
 static int i1_sub = -1;
 
+static double del_x_k_prev = 0.0;
+
 /* flags  */
 static int newNodeFlag = 0;
 static int iHaveTip = 0;
@@ -60,10 +62,16 @@ void Calc_Mesh_Movement(Thread *tf, char meshZone, double tau, double del_x, dou
 	
 	if (NewTimeStepForThisZone(meshZone))
 	{
+		Message0("New time step for this zone --> Calc_Kin_and_Move\n");
 		Calc_Kinematics_and_Move(tf, meshZone, tau, del_x);
 	}
 	else
-		Move_Nodes_to_Stored_Positions(tf, 4, 5);	/* Node positions (x,y) stored in node memory (4,5) */
+	{
+		Message0("NOT New time step for this zone --> Move_Nodes_to_Stored_Positions\n");
+		Move_Nodes_to_Stored_Positions(tf, 4, 5, del_x, meshZone);	/* Node positions (x,y) stored in node memory (4,5) */
+	}
+	
+	del_x_k_prev = del_x;
 	
 	#endif 
 }
@@ -210,18 +218,14 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		{
 			v = holdNodes[localj];
 			if (NODE_POS_NEED_UPDATE(v) || (NODE_Y(v) <= 1e-7))
-			{	
-				/* store old position  */
-				N_UDMI(v,2) = NODE_X(v); 	/* xold */
-				N_UDMI(v,3) = NODE_Y(v);	/* yold */
-				
+			{
 				/* kinematic motion  */
 				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
 				/* g[j] = 1.0; */
 				/* calc g for this node  */				
 				if (meshZone == 'e') {
 					/* flexed position  */
-					N_UDMI(v,4) = x + del_x + (g[j]*b*cos(tparm_ex[j]) + b);	/* new x position = current position + forward swimming displacement + kinematic motion */
+					N_UDMI(v,4) = x + del_x + (g[j]*b*cos(tparm_ex[j]) + b);	/* new x position - swimming displacement = current position + kinematic motion */
 					N_UDMI(v,5) = g[j]*a*sin(tparm_ex[j]);						/* new y position = current position + kinematic motion	 */
 					/* unflexed position  */
 					N_UDMI(v,12) = x + del_x + (b*cos(tparm_ex[j]) + b);	/* g[j] term omitted  */
@@ -252,6 +256,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 					xTipUnflexed_temp = N_UDMI(v,12);
 					yTipUnflexed_temp = N_UDMI(v,13);
 					iHaveTip = 1;
+					Message("I have tip x = %lf, y = %lf\n", xTip_temp, yTip_temp);
 				}
 				
 				/* -- Move nodes except apex --  */
@@ -264,9 +269,9 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				/** DEBUG * */
 				/* if ( (N_TIME == 1)  || (N_TIME >= 63) ) */
 				/* { */
-				/* Message("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid); */
-				Message("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid);
-				/* Message("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */ 
+				/* Message0("\tj:%i  xold = %lf\t\t yold = %lf (node%i)\n",j, N_UDMI(v,2), N_UDMI(v,3), myid);
+				Message0("\tj:%i  xnew = %lf\t\t ynew = %lf (node%i)\n",j, N_UDMI(v,4), N_UDMI(v,5), myid);
+				Message0("\tj:%i  delx = %lf\t\t dely = %lf (node%i)\n\n",j, N_UDMI(v,4)-N_UDMI(v,2), N_UDMI(v,5)-N_UDMI(v,3), myid); */
 				/* }
 				
 			}
@@ -295,17 +300,18 @@ Input:	holdNodes	-	array of sorted nodes, from apex to margin
 		
 Output:	
 ---------------------------------------------------------------- */
-void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
+void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot, double del_x, char meshZone)
 {
 	#if !RP_HOST
 	face_t f;
 	Node *v;
 	int n;
 	int j = 0;
+	int x_memslot_unfl = 12;
 	
 	
 	/* -- Move nodes --  */
-	Message0("\tMoving nodes to stored positions...\n");
+	Message0("\tMoving nodes to stored positions... (del_x old: %10.10f, del_x new: %10.10f)\n", del_x_k_prev, del_x);
 	j = 0;
 	begin_f_loop(f,tf) {
 		if PRINCIPAL_FACE_P(f,tf) {
@@ -315,11 +321,22 @@ void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot)
 				
 				if (NODE_POS_NEED_UPDATE(v) && (NODE_Y(v) > 1e-7))
 				{	/* this was commented out! may break the simulation, keep an eye out */
+					N_UDMI(v, x_memslot) 	  = N_UDMI(v, x_memslot) - del_x_k_prev + del_x;
+					N_UDMI(v, x_memslot_unfl) = N_UDMI(v, x_memslot_unfl) - del_x_k_prev + del_x;
+					
 					NODE_X(v) = N_UDMI(v, x_memslot);
 					NODE_Y(v) = N_UDMI(v, y_memslot);
 					NODE_POS_UPDATED(v);
-					
-					
+
+					/* Store new location of flexed tip  */
+					if ( NodeIsTip(v) && (meshZone == 'e') )
+					{
+						xTip_temp = N_UDMI(v, x_memslot);
+						xTipUnflexed_temp = N_UDMI(v, x_memslot_unfl);
+						iHaveTip = 1;
+						Message("I have tip x = %lf, y = %lf\n", xTip_temp, yTip_temp);
+					}
+
 					/*Message("\nnode %i:  dist = %lf\n",j,N_UDMI(v,0)); */
 					/* Message("node %i:  xold = %lf\t\t yold = %lf\n",v, N_UDMI(v,2), N_UDMI(v,3)); */
 					/* Message("node %i:  xnew = %lf\t\t ynew = %lf\n",v, N_UDMI(v,4), N_UDMI(v,5)); */
@@ -979,7 +996,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* Debug */
 	for (j = 0; j < total_i; j++)
 	{
-		Message0("\t\t arclengthArray_unflex[%i] = %10.10f (dist = %lf, x = %lf, y = %lf)\n", j, arclengthArray_unflex[j], masterArr_dist[j], masterArr_x_un[j], masterArr_y_un[j] ); 
+		/* Message0("\t\t arclengthArray_unflex[%i] = %10.10f (dist = %lf, x = %lf, y = %lf)\n", j, arclengthArray_unflex[j], masterArr_dist[j], masterArr_x_fl[j], masterArr_y_fl[j] );  */
 	}
 	
 	/**
@@ -1249,7 +1266,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* diagnostics  */
 					/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",j, NODE_X(v), NODE_X(v)-b, b); */
-					/* Message("j:%i  Snorm = %lf, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Sunflexedj/SmaxUnflexed, tparm_ex[j], tparm_old_j, NODE_X(v), NODE_Y(v)); */
+					/* Message0("j:%i  Snorm = %lf, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Si/SmaxUnflexed, tparm_ex[j], tparm_old_Arr[j], NODE_X(v), NODE_Y(v)); */
 					/**DEBUG* */
 					/* if (N_TIME >= 63) */
 						/* Message("j:%i  tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
@@ -1451,7 +1468,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 					
 					/* diagnostics  */
 					/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",j, NODE_X(v), NODE_X(v)-b, b); */
-					/* Message("j:%i  Snorm = %lf, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Sunflexedj/SmaxUnflexed, tparm_sub[j], tparm_old_j, NODE_X(v), NODE_Y(v)); */
+					/* Message0("j:%i  Snorm = %lf, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Si/SmaxUnflexed, tparm_sub[j], tparm_old_Arr[j], NODE_X(v), NODE_Y(v)); */
 					/**DEBUG* */
 					/* if (N_TIME >= 63) */
 						/* Message("j:%i  tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));  */
@@ -1690,7 +1707,8 @@ void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnfl
 
 /**---------- Store_OldKinematicVars ---------------------------
 * TODO 1: Clean this up and make sure this isn't part of the problem w/ running on n>2 nodes
-* TODO 2: Store the old nodal coordinates here in N_UDMI(v,2) and N_UDMI(v,3) 
+* !! tparmOld is UNSET for the first time step of implicit sim! This needs to be called
+* !! probably from the main function at the very end
 ---------------------------------------------------------------- */
 void Store_OldKinematicVars(void)
 {
@@ -1704,8 +1722,29 @@ void Store_OldKinematicVars(void)
 	int i, n, N, tipScan;
 	int *tip_arr, *iworkN;
 	
-	#if PARALLEL
+	tf_array[0] = tf_ex;
+	tf_array[1] = tf_sub;
+
+	/* ---------------------------------- */
+	/* Store old (current) node positions */
+	/* ---------------------------------- */
+	for (i = 0; i < NUM_ZONES; i++)
+	{
+		tf = tf_array[i];
+		begin_f_loop(f,tf) {
+			if PRINCIPAL_FACE_P(f,tf) {
+				f_node_loop(f,tf,n) 
+				{
+					v = F_NODE(f,tf,n);
+					N_UDMI(v,2) = NODE_X(v); 	
+					N_UDMI(v,3) = NODE_Y(v);
+				}
+			}
+		}
+		end_f_loop(f,tf);
+	}
 	
+	#if PARALLEL
 	/** Simple tip coord sync **/
 	/* ----------------------  */
 	/* store tip coords  */
@@ -1759,9 +1798,6 @@ void Store_OldKinematicVars(void)
 	/* ----------------------  */
 	/* store tparm for all other nodes  */
 	/* ----------------------  */
-	tf_array[0] = tf_ex;
-	tf_array[1] = tf_sub;
-	
 	Message0("Storing tparm_old values on surface ");
 	for (i = 0; i < NUM_ZONES; i++)
 	{

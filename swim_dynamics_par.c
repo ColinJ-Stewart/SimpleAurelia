@@ -21,7 +21,13 @@ int ks = 0;
 const double ALPHA_F = 0.05;		/* Settings for explicit scheme */
 const double ALPHA_X = 1.0;			/* Settings for explicit scheme */
 
-const double ALPHA_Fi = 1.0;		/* Settings for implicit scheme */
+/* implicit solve variables */
+double fx_k = 0.0;
+double nextVel_k = 0.0;
+double x_k = 0.0;
+double del_x_k = 0.0;
+
+const double ALPHA_Fi = 0.1;		/* Settings for implicit scheme */
 
 
 /** Function definitions * */
@@ -155,6 +161,10 @@ double Get_BodyVelocity(Thread *tf, char meshZone, double fx_tot, double *del_x_
 			
 			if ((meshZone == 'e') || (meshZone == 'i')) 
 			{
+				if (NewTimeStepForThisZone('e'))
+				{
+					ke = 0;
+				}
 				if (NewTimeStepForThisZone('e') && NewTimeStepForThisZone('i')) 
 				{
 					Message("\t-------- calc vel on zone %c -------- \n",meshZone);
@@ -344,6 +354,30 @@ double Get_Del_At_End(char meshZone)
 	#endif
 }
 
+/*---------- Get_k_At_End -------------------------------------
+Purpose: 
+
+Input:	
+
+Output:
+---------------------------------------------------------------- */
+int Get_k_At_End(char meshZone)
+{
+	#if !RP_HOST
+		if (meshZone == 'e') return ke;
+		else if (meshZone == 's') return ks;
+		else
+		{
+			Error("Wrong meshZone char specified");
+			return 0.0;
+		}
+	#endif
+	
+	#if RP_HOST
+		return 0.0;
+	#endif
+}
+
 
 /*---------- Get_BodyVelocity_Implicit -------------------------------------
 Purpose: 
@@ -359,11 +393,11 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_k_raw, dou
 	#if !RP_HOST
 		double mass_jelly = Get_Mass();
 		double fx, fxS;
-		double nextVel = 0.0, nextVelS = 0.0;
 		double x, x_raw, xS_raw;
 		double x_position;
 		double del_x = 0.0, del_xS = 0.0;
 		int endFlag = 0;
+		double fx_k_prev;
 		
 		x_position = Rezero(tf);
 		
@@ -373,20 +407,20 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_k_raw, dou
 			/* Message("x_prev = %16.12f, x_prevS = %16.12f\n", x_prev, xS_prev); */
 
 			/* iteration 1 calc new velocity and x-displacement  */
-			/**
-			 * ?redundant w/ NewTimeStep() ?
-			 **/
-			if (NewTimeStepForThisZone('e') && NewTimeStepForThisZone('i')
-				&& NewTimeStepForThisZone('s')) 
+			if (NewTimeStep()) 
 			{
 				Message("\t-------- calc vel on zone %c -------- \n",meshZone);
 				if (meshZone == 'e')
 				{
-					ke = 1;
+					ke = 0;
 				}
-				else
+				if (meshZone == 'i')
 				{
-					ki = 1;
+					ki = 0;
+				}
+				if (meshZone == 's')
+				{
+					ks = 0;
 				}
 				
 				/* First time step (initialize) */
@@ -400,6 +434,9 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_k_raw, dou
 				else 
 				{
 					/* Update values from last iteration of last time step */
+					/**
+					 * ! Use this only if EXECUTE_AT_END runs every iteration
+					 **/
 					fx_prev = fx_k;
 					preVel = nextVel_k;
 					x_prev = x_k;
@@ -410,42 +447,25 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_k_raw, dou
 					del_x_k = nextVel_k * CURRENT_TIMESTEP;
 					*del_x_ptr = del_x_k;
 				}
-
-				/** 
-				 * !store for next iteration IF NOT HANDLED AT EXECUTE_AT_END 
-				 * */
-				/* fx_prev = fx;
-				preVel = nextVel;
-				x_prev = x; */
-				
 			}
 			/*  iteration >1 calc new velocity and x-displacement  */
-			else if ( ((ke%2 == 1) || (ki%2 == 1)) && (endFlag == 0) )
+			else if ( ((ke%2 == 1) || (ki%2 == 1) || (ks%2 == 1)) && (endFlag == 0) )
 			{
 				/* Update values from last iteration */
 				fx_k_prev = fx_k;
 
 				/* Implicit Euler  */		
-				Message0("Recalculating velocity (meshZone %c)... ", meshZone);
+				Message0("Recalculating velocity (meshZone %c)...\n ", meshZone);
+				Message0("ke = %i, ki = %i, ks = %i\n", ke, ki, ks);
 				fx_k = ALPHA_Fi*fx_k_raw + (1-ALPHA_Fi)*fx_k_prev;
 				nextVel_k = preVel + (fx_k/mass_jelly) * CURRENT_TIMESTEP; 		/* backwards diff, 1st order accurate */
 				del_x_k = nextVel_k * CURRENT_TIMESTEP;	/* backwards diff, 1st order accurate */
 				*del_x_ptr = del_x_k;
 				Message0("Done. \n");
-
-				/** 
-				 * !store for next iteration IF NOT HANDLED AT EXECUTE_AT_END 
-				 * */
-				/* fx_prev = fx_raw;
-				preVel = nextVel; */
-				
 			}
 			else 
 			{
 				/* Calc nothing when UDF is being called by Laplace mesh smoothing  */
-				/**
-				 * ? Calc nothing, or DO nothing?
-				 **/
 			}
 			
 			/* Message("Iteration %i through EXUM: del_x = %16.12f, vel_x = %16.12f\n", ke, del_x, preVel); */
@@ -462,6 +482,10 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_k_raw, dou
 			{
 				ks = ks + 1;
 			}
+		}
+		else
+		{
+			nextVel_k = 0.0;
 		}
 	#endif
 	
