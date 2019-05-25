@@ -48,7 +48,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 					
 int NodeIsTip (Node *v);
 
-void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int nNodes, 
+void Get_tparm(char meshZone, Node *holdNodes[],  double a, double b, double b_sub[], int nNodes, 
 				double SmaxUnflexed, int idArray[][2]);
 				
 void Get_a_sub(double *a_sub_ptr, double a, Node *holdNodes[], int nNodes, 
