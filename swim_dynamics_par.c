@@ -123,7 +123,6 @@ double Get_Force2_x(Thread *tf)
 }
 	
 
-
 /*---------- GetBodyVelocity -------------------------------------
 Purpose: 
 

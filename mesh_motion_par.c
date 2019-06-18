@@ -127,6 +127,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	a = ai*(1-sa*pa);
 	b = bi*(1-sb*pb);
 	d = di*(1-sd*pdd);
+	Message0("a = %10.10f, b = %10.10f, d = %10.10f\n", a , b , d);
 	
 	/* calculate the new position of the margin tip. This is used to find arc length as well as tparm  */
 	tparmTip = acos(d/b);
@@ -160,7 +161,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	/*------------ calculate tparm, asub, and bsub ------------ */
 	if (meshZone == 'e') { 
 		Message0("\tCalculating initial tparm values... \n");
-		Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
+		Get_tparm(meshZone, holdNodes, a, b, b_sub, total_i, SmaxUnflexed, idArray);
 		Message0("\tDone.\n");
 	}
 	else if (meshZone == 's') {
@@ -171,14 +172,14 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 			Load_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray, arclengthArray_unflex);
 			
 			Message0("\tCalculating initial tparm values... \n");
-			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
+			Get_tparm(meshZone, holdNodes, a, b, b_sub, total_i, SmaxUnflexed, idArray);
 			/* Message("Done.\n"); */
 		}
 		else 
 		{
 			/* Message("!! tparmTip = %lf, tparmTipOld = %lf!!\n", tparmTip, tparmTipOld);  */
 			/*Message0("\tCalculating tparm... \n");*/
-			Get_tparm(meshZone, holdNodes, b, b_sub, total_i, SmaxUnflexed, idArray);
+			Get_tparm(meshZone, holdNodes, a, b, b_sub, total_i, SmaxUnflexed, idArray);
 			
 			/*Message0("\tCalculating a_sub... \n");*/
 			Get_a_sub(a_sub_ptr, a, holdNodes, total_i, SmaxUnflexed, idArray);
@@ -211,6 +212,10 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 			v = holdNodes[localj];
 			if (NODE_POS_NEED_UPDATE(v) || (NODE_Y(v) <= 1e-7))
 			{	
+				/* store old position  */
+				N_UDMI(v,2) = NODE_X(v); 	/* xold */
+				N_UDMI(v,3) = NODE_Y(v);	/* yold */
+				
 				/* kinematic motion  */
 				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
 				/* g[j] = 1.0; */
@@ -450,7 +455,7 @@ double Get_Unflexed_ArcLengths(char meshZone, Node *holdNodes[], int nNodes)
 	Node *v, *w;
 	
 	
-	/* First point of arc length calc  */
+	/* First iteration of arc length calc  */
 	N_UDMI(holdNodes[0],14) = 0;
 	/* Message("arclength = %lf, dist = %lf \n",N_UDMI(holdNodes[0],1), 0); */
 	for (j = 1; j < nNodes; j++) { 
@@ -813,7 +818,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* sync an array that holds the # of mesh nodes contained on each processor */
 	this_i[myid] = i;
 	PRF_GISUM(this_i, compute_node_count, iworkN);	 
-	Message0("\t\t I am Node%i and I have %i mesh nodes of mesh zone %c \n",myid, i, meshZone);
+	Message("\t\t I am Node%i and I have %i mesh nodes of mesh zone %c \n",myid, i, meshZone);
 	
 	/* initialize arrays that contain one value per MESH node */
 	Message0("\t\t Initializing arrays\n");
@@ -840,7 +845,9 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 
 		/* 2D initialization of all elements  */
 		for (M = 0; M < 5; M++)
+		{
 			masterNodeIndex[j*2 + M] = 0.0;
+		}
 	}
 
 	/**
@@ -870,7 +877,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 
 			if ( NodeIsTip(holdNodes[j_lcl]) )
 			{
-				Message0("\t\t Adding tip to masterArr! N_UDMI(v,6) = %lf, N_UDMI(v,7) = %lf\n",N_UDMI(holdNodes[j_lcl],6), N_UDMI(holdNodes[j_lcl],7));
+				/* Message0("\t\t Adding tip to masterArr! N_UDMI(v,6) = %lf, N_UDMI(v,7) = %lf\n",N_UDMI(holdNodes[j_lcl],6), N_UDMI(holdNodes[j_lcl],7)); */
 				masterArr_x_un[j] = xTipUnflexedOld;
 				masterArr_y_un[j] = yTipUnflexedOld;
 				masterArr_x_fl[j] = xTipOld;
@@ -907,7 +914,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* sort the 2D array so the order goes from apex mesh nodes to tip mesh nodes 
 			(i.e. ascending radial distance)  */
 	Message0("\t\t Sorting masterArr \n");
-	bubbleSort_double2D(masterNodeIndex, total_i, cols, 'a'); 
+	bubbleSort_double2D(masterNodeIndex, total_i, cols, 'a');
 
 	Message0("\t\t Breaking masterArr back into vectors \n");
 	for (j = 0; j < total_i; j++)
@@ -1053,7 +1060,7 @@ Input:	tparm_ptr	-	pointer to tparm so it can be modified by
 		
 Output:		none. All changes are made to tparm via tparm_ptr
 ---------------------------------------------------------------- */
-void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int nNodes, 
+void Get_tparm(char meshZone, Node *holdNodes[],  double a, double b, double b_sub[], int nNodes, 
 				double SmaxUnflexed, int idArray[][2]) 
 {
 	#if !RP_HOST
@@ -1073,6 +1080,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 	int thisID, localj;
 	int loop;
 	double dif;
+	double arg1, arg2; 
 	
 	
 	/* initialize tparm arrays  */
@@ -1116,7 +1124,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v,9) = 1;				/* old node flag (I guess assume that it is never remeshed?) */
 			
 			/** diagnostics * */
-			Message0("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
+			Message("\t\t%c j:%i  tp = %f, tpo = %f, x = %lf, y = %lf (node%i)\n", meshZone, 0, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v), myid);
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1131,12 +1139,14 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 				if (myid == thisID)
 				{
 					v = holdNodes[localj];
-					tparm_ex[j] = acos((NODE_X(v)-b)/b);	/* store in global array */
-					N_UDMI(v,10) = tparm_ex[j];			/* store tparm (moving code away from global arrays like tparm_ex[]) */
+					arg1 = NODE_Y(v)/a; 
+					arg2 = (NODE_X(v) - b)/b;
+					tparm_ex[j] = atan2(arg1, arg2);		/* store in global array */
+					N_UDMI(v,10) = tparm_ex[j];		/* store tparm (moving code away from global arrays like tparm_ex[]) */
 					N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 					
 					/** diagnostics * */
-					Message0("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
+					Message("\t\t%c j:%i  tp = %f, tpo = %f, x = %lf, y = %lf (node%i)\n", meshZone, j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v), myid);
 				}
 			}
 		}
@@ -1221,7 +1231,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 						
 						tparm_old_Arr[j] = tparm_old_Arr[iL] + (double)(j-iL)/(iR-iL) * (tparm_old_Arr[iR] - tparm_old_Arr[iL]);
 						N_UDMI(v,8) = tparm_old_Arr[j];
-						Message0("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
+						Message0("\t\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
 						
 					}
 					
@@ -1272,7 +1282,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 			N_UDMI(v, 9) = 1;				/* old node flag */
 			
 			/* diagnostics  */
-			Message0("\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", 0, N_UDMI(holdNodes[0],10), N_UDMI(holdNodes[0],8), NODE_X(holdNodes[0]), NODE_Y(holdNodes[0]));
+			Message("\t\t%c j:%i  tp = %f, tpo = %f, x = %lf, y = %lf, (node%i)\n", meshZone, 0, N_UDMI(holdNodes[0],10), N_UDMI(holdNodes[0],8), NODE_X(holdNodes[0]), NODE_Y(holdNodes[0]), myid);
 			/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",0, NODE_X(holdNodes[0]), NODE_X(holdNodes[0])-b, b); */
 		}
 		
@@ -1320,7 +1330,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 							N_UDMI(v,8) = N_UDMI(v,10);		/* set tparm_old = tparm (execute_at_end macro doesn't work at N_TIME = 0) */
 							
 							/* diagnostics  */
-							Message0("\t\tj:%i  tp = %f, tpo = %f, x = %lf, y = %lf\n", j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v));
+							Message("\t\t%c j:%i  tp = %f, tpo = %f, x = %lf, y = %lf (node%i)\n", meshZone, j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v), myid);
 						}
 						
 						/* tparm calc LOOP 2 -- check tparm  */
@@ -1424,7 +1434,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double b, double b_sub[], int 
 						
 						tparm_old_Arr[j] = tparm_old_Arr[iL] + (double)(j-iL)/(iR-iL) * (tparm_old_Arr[iR] - tparm_old_Arr[iL]);
 						N_UDMI(v,8) = tparm_old_Arr[j];
-						Message0("\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
+						Message0("\t\tj: %i	iL: %i	iR: %i	tparm_old_iL: %lf	tparm_old_iR: %lf \n", j, iL, iR, tparm_old_Arr[iL], tparm_old_Arr[iR]);
 					
 					}
 					
@@ -1700,30 +1710,7 @@ void Store_OldKinematicVars(void)
 	int i, n, N, tipScan;
 	int *tip_arr, *iworkN;
 	
-	tf_array[0] = tf_ex;
-	tf_array[1] = tf_sub;
-	
-	
 	#if PARALLEL
-	/* ---------------------------------- */
-	/* Store old (current) node positions */
-	/* ---------------------------------- */
-	for (i = 0; i < NUM_ZONES; i++)
-	{
-		tf = tf_array[i];
-		begin_f_loop(f,tf) {
-			if PRINCIPAL_FACE_P(f,tf) {
-				f_node_loop(f,tf,n) 
-				{
-					v = F_NODE(f,tf,n);
-					N_UDMI(v,2) = NODE_X(v); 	/* xold */
-					N_UDMI(v,3) = NODE_Y(v);	/* yold */
-				}
-			}
-		}
-		end_f_loop(f,tf);
-	}
-
 	
 	/** Simple tip coord sync **/
 	/* ----------------------  */
@@ -1778,8 +1765,10 @@ void Store_OldKinematicVars(void)
 	/* ----------------------  */
 	/* store tparm for all other nodes  */
 	/* ----------------------  */
+	tf_array[0] = tf_ex;
+	tf_array[1] = tf_sub;
+	
 	Message0("Storing tparm_old values on surface ");
-	/* loop over the zones stored in tf_array */
 	for (i = 0; i < NUM_ZONES; i++)
 	{
 		Message0("%i... ", i);
