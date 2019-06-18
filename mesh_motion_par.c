@@ -1246,7 +1246,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double a, double b, double b_s
 						tparm_ex[j] = tparm_old_Arr[j] + N_UDMI(v,15) * (tparmTip - tparmTipOld); 
 					}
 					/* tparm_ex[j] = tparm_old_Arr[j] + (double)j/(nNodes-1)*(tparmTip - tparmTipOld);  */
-					tparm_ex[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld); 
+					tparm_ex[j] = tparm_old_Arr[j] + Si/SmaxUnflexed * (tparmTip - tparmTipOld);
 					N_UDMI(v,10) = tparm_ex[j];
 					
 					/* old codes */
