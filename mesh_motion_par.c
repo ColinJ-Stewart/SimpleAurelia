@@ -1255,7 +1255,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double a, double b, double b_s
 					
 					/* diagnostics  */
 					/* Message("j:%i  x = %lf, x-b = %lf, b = %lf\n",j, NODE_X(v), NODE_X(v)-b, b); */
-					Message("j:%i  Snorm = %lf, tparmTip = %10.10f, tparmTipOld = %10.10f, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Si/SmaxUnflexed, tparmTip, tparmTipOld, tparm_ex[j], tparm_old_Arr[j], NODE_X(v), NODE_Y(v));
+					/* Message("j:%i  Snorm = %lf, tparmTip = %10.10f, tparmTipOld = %10.10f, tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, Si/SmaxUnflexed, tparmTip, tparmTipOld, tparm_ex[j], tparm_old_Arr[j], NODE_X(v), NODE_Y(v)); */
 					/**DEBUG* */
 					/* if (N_TIME >= 63) */
 						/* Message("j:%i  tp = %f, tpo = %lf, x = %lf, y = %lf\n",j, N_UDMI(v,10), N_UDMI(v,8), NODE_X(v), NODE_Y(v)); */
