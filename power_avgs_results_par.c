@@ -24,55 +24,52 @@ Input:	FILE *stream	-	File stream
 ---------------------------------------------------------------- */
 double Compute_Power_In(Thread *tf, double velx, double vely) 
 {
-	double power = 0.0;
-	
-	#if !RP_HOST	/*SERIAL or NODE */
-	Thread *tf0;
-	face_t f;
-	cell_t c;
-	double A[ND_ND];
-	double powerInviscid = 0.0;
-	double powerDebug = 0.0;
-	double thrustDebugInv = 0.0;
-	double thrustDebugVisc1 = 0.0;
-	double thrustDebugVisc2 = 0.0;
-	
-
-	/* loop through cells on  surface, calculating power from each  */
-	begin_f_loop(f,tf) {  
-		c = F_C0(f,tf);
-		tf0 = THREAD_T0(tf);
-		F_AREA(A,f,tf);
-		
-		/* power = power +  */
-			/* A[0]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DUDX(c,tf))*C_U(c,tf) +  */
-					/* C_MU_L(c,tf)*(C_DVDX(c,tf) + C_DUDY(c,tf))*C_V(c,tf)) + */
-			/* A[1]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DVDY(c,tf))*C_V(c,tf) +  */
-					/* C_MU_L(c,tf) * (C_DVDX(c,tf) + C_DUDY(c,tf))*C_U(c,tf)); */
-		
-		/* powerInviscid = powerInviscid + A[0]*2*M_PI*(-F_P(f,tf))*F_U(f,tf)  + A[1]*2*M_PI*(-F_P(f,tf))*F_V(f,tf);		// Inviscid power */
-										
-										
-										
-		/* _______________________________________________________  */
-		
-		/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
-		power = power + -2*M_PI*( (A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]) * F_U(f,tf) 
-								+ (A[1]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[1]) * F_V(f,tf) );
-		/* _______________________________________________________  */
-
-		
-	} end_f_loop(f,tf)
-	
+	#if RP_HOST
+		return 0.0;
 	#endif
-	
-	return power;
-	/* return powerInviscid; */
-	/* return powerDebug; */
-	/* return thrustDebugInv; */
-	/* return thrustDebugVisc1; */
-	/* return thrustDebugVisc2; */
 
+	#if !RP_HOST
+		face_t f;
+		cell_t c;
+		Thread *tf0;
+		double A[ND_ND];
+		double power = 0.0;
+		
+
+		/* loop through cells on  surface, calculating power from each  */
+		begin_f_loop(f,tf) 
+		{
+			if PRINCIPAL_FACE_P(f,tf)
+			{  
+				c = F_C0(f,tf);
+				tf0 = THREAD_T0(tf);
+				F_AREA(A,f,tf);
+				
+				/* Viscous pwoer */
+				/* power = power +  */
+					/* A[0]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DUDX(c,tf))*C_U(c,tf) +  */
+							/* C_MU_L(c,tf)*(C_DVDX(c,tf) + C_DUDY(c,tf))*C_V(c,tf)) + */
+					/* A[1]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DVDY(c,tf))*C_V(c,tf) +  */
+							/* C_MU_L(c,tf) * (C_DVDX(c,tf) + C_DUDY(c,tf))*C_U(c,tf)); */
+				
+				/* Inviscid power */
+				/* power = power + A[0]*2*M_PI*(-F_P(f,tf))*F_U(f,tf)  + A[1]*2*M_PI*(-F_P(f,tf))*F_V(f,tf);		// Inviscid power */
+				
+				/* _______________________________________________________  */
+				
+				/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
+				power = power + -2*M_PI*( (A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]) * F_U(f,tf) 
+										+ (A[1]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[1]) * F_V(f,tf) );
+				/* _______________________________________________________  */
+			}
+		} end_f_loop(f,tf)
+		
+		#if RP_NODE
+			power = PRF_GRSUM1(power);
+		#endif
+		
+		return power;
+	#endif
 }
 
 
@@ -87,118 +84,114 @@ void Compute_Power_Out(double velx, double vely,
 						double *P_thrust_SMC_ptr, double *P_thrust_B_ptr,
 						double *P_drag_SMC_ptr, double *P_drag_B_ptr) 
 {
+	#if RP_HOST
+		return;
+	#endif
+
 	#if !RP_HOST	/*SERIAL or NODE */
-	Thread *tf_ex = Lookup_Thread(domain, EX_ZONE);
-	Thread *tf_sub = Lookup_Thread(domain, SUB_ZONE);
-	Thread *tf_array[NUM_ZONES];
-	Thread *tf, *tf0;
-	face_t f;
-	cell_t c;
-	double A[ND_ND];
-	double f_i, f_ip, f_if;
-	double f_p = 0.0, f_f = 0.0;
-	double f_thrust_SMC = 0.0;			/* thrust force [N] as defined by Sahin, Mohseni, and Colin */
-	double f_thrust_B = 0.0;			/* thrust force [N] as defined by Borazjani et al */
-	double f_drag_SMC = 0.0;			/* drag (friction) force [N] as defined by Sahin, Mohseni, and Colin */
-	double f_drag_B = 0.0;				/* drag force [N] as defined by Borazjani et al */
-	double P_thrust_SMC = 0.0;
-	double P_thrust_B = 0.0;
-	double P_drag_SMC = 0.0;
-	double P_drag_B = 0.0;
-	int i;
+		Thread *tf_ex = Lookup_Thread(domain, EX_ZONE);
+		Thread *tf_sub = Lookup_Thread(domain, SUB_ZONE);
+		Thread *tf_array[NUM_ZONES];
+		Thread *tf, *tf0;
+		face_t f;
+		cell_t c;
+		double A[ND_ND];
+		double f_i, f_ip, f_if;
+		double f_p = 0.0, f_f = 0.0;
+		double f_thrust_SMC = 0.0;			/* thrust force [N] as defined by Sahin, Mohseni, and Colin */
+		double f_thrust_B = 0.0;			/* thrust force [N] as defined by Borazjani et al */
+		double f_drag_SMC = 0.0;			/* drag (friction) force [N] as defined by Sahin, Mohseni, and Colin */
+		double f_drag_B = 0.0;				/* drag force [N] as defined by Borazjani et al */
+		double P_thrust_SMC = 0.0;
+		double P_thrust_B = 0.0;
+		double P_drag_SMC = 0.0;
+		double P_drag_B = 0.0;
+		int i;
 
-	tf_array[0] = tf_ex;
-	tf_array[1] = tf_sub;
-	
-	/* loop through cells on  surface, calculating power from each  */
-	for (i = 0; i < NUM_ZONES; i++)
-	{
-		tf = tf_array[i];
-		begin_f_loop(f,tf) {  
-			c = F_C0(f,tf);
-			tf0 = THREAD_T0(tf);
-			F_AREA(A,f,tf);
-			
-			/* power = power +  */
-				/* A[0]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DUDX(c,tf))*C_U(c,tf) +  */
-						/* C_MU_L(c,tf)*(C_DVDX(c,tf) + C_DUDY(c,tf))*C_V(c,tf)) + */
-				/* A[1]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DVDY(c,tf))*C_V(c,tf) +  */
-						/* C_MU_L(c,tf) * (C_DVDX(c,tf) + C_DUDY(c,tf))*C_U(c,tf)); */
-			
-			/* powerInviscid = powerInviscid + A[0]*2*M_PI*(-F_P(f,tf))*F_U(f,tf)  + A[1]*2*M_PI*(-F_P(f,tf))*F_V(f,tf);		// Inviscid power */
-											
-											
-											
-			/* _______________________________________________________ */
-			/*		The following code has been verified			   */
-			/* _______________________________________________________ */
-			/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
-			
-			f_i = 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);
-			f_ip = 2*M_PI*A[0]*F_P(f,tf);									/* pressure force */
-			f_if = 2*M_PI* (-F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);		/* friction force */
-			
-			f_p = f_p + f_ip;		/* sum up individual pressure contributions */
-			f_f = f_f + f_if;		/* sum up individual friction contributions */
+		tf_array[0] = tf_ex;
+		tf_array[1] = tf_sub;
+		
+		/* loop through cells on  surface, calculating power from each  */
+		for (i = 0; i < NUM_ZONES; i++)
+		{
+			tf = tf_array[i];
+			begin_f_loop(f,tf) 
+			{
+				if PRINCIPAL_FACE_P(f,tf)
+				{
+					c = F_C0(f,tf);
+					tf0 = THREAD_T0(tf);
+					F_AREA(A,f,tf);
+					
+					/* power = power +  */
+						/* A[0]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DUDX(c,tf))*C_U(c,tf) +  */
+								/* C_MU_L(c,tf)*(C_DVDX(c,tf) + C_DUDY(c,tf))*C_V(c,tf)) + */
+						/* A[1]*2*M_PI*((-F_P(f,tf) + 2*C_MU_L(c,tf)*C_DVDY(c,tf))*C_V(c,tf) +  */
+								/* C_MU_L(c,tf) * (C_DVDX(c,tf) + C_DUDY(c,tf))*C_U(c,tf)); */
+					
+					/* power = power + A[0]*2*M_PI*(-F_P(f,tf))*F_U(f,tf)  + A[1]*2*M_PI*(-F_P(f,tf))*F_V(f,tf);		// Inviscid power */
+						
+					/* _______________________________________________________ */
+					/*		The following code has been verified			   */
+					/* _______________________________________________________ */
+					/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
+					
+					f_ip = 2*M_PI*A[0]*F_P(f,tf);									/* pressure force */
+					f_if = 2*M_PI* (-F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);		/* friction force */
+					
+					f_p = f_p + f_ip;		/* sum up individual pressure contributions */
+					f_f = f_f + f_if;		/* sum up individual friction contributions */
+					/* _______________________________________________________  */
+				}
+			} end_f_loop(f,tf)
+		}
+		
+		#if RP_NODE
+			f_p = PRF_GRSUM1(f_p);
+			f_f = PRF_GRSUM1(f_f);
+		#endif
 
-			/* f_i = -f_i; 	// Simulation makes the jellyfish swim in negative x-direction */
-			/* f_thrust = f_thrust + (f_i + fabs(f_i) )/2; */
-			/* f_drag = f_drag + (f_i - fabs(f_i) )/2; */
-			/* power = power + ((f_i + fabs(f_i) )/2) * -F_U(f,tf);			// thrust power. Note that F_U has negative sign in front b/c jellyfish swims in the negative x-direction */
-			/* _______________________________________________________  */
-			
-		} end_f_loop(f,tf)
-	}
-	
-	
-	/* if total pressure force helps the jellyfish swim then add it to thrust  */
-	if (f_p < 0)
-	{
-		f_thrust_SMC = f_p;
-		f_thrust_B = f_p;
-	}
-	/* only Borazjani's formulation includes pressure term in drag  */
-	else
-	{
-		f_drag_B = f_p;
-	}
-	
-	/* skin friction is always part of SMC's friction term (obviously)  */
-	f_drag_SMC = f_f;
-	/* if total skin friction retards the jellyfish then add it to drag  */
-	if (f_f > 0)
-	{
-		f_drag_B = f_drag_B + f_f;
-	}
-	/* total skin friction helps the jellyfish swim forward (basically impossible, 
-	but here for completeness)  */
-	else
-	{
-		f_thrust_B = f_thrust_B + f_f;
-	}
+		/* if total pressure force helps the jellyfish swim then add it to thrust  */
+		if (f_p < 0)
+		{
+			f_thrust_SMC = f_p;
+			f_thrust_B = f_p;
+		}
+		/* only Borazjani's formulation includes pressure term in drag  */
+		else
+		{
+			f_drag_B = f_p;
+		}
+		
+		/* skin friction is always part of SMC's friction term (obviously)  */
+		f_drag_SMC = f_f;
+		/* if total skin friction retards the jellyfish then add it to drag  */
+		if (f_f > 0)
+		{
+			f_drag_B = f_drag_B + f_f;
+		}
+		/* total skin friction helps the jellyfish swim forward (basically impossible, 
+		but here for completeness)  */
+		else
+		{
+			f_thrust_B = f_thrust_B + f_f;
+		}
 
-	P_thrust_SMC = f_thrust_SMC * velx;
-	P_drag_SMC = f_drag_SMC * velx;
-	P_thrust_B = f_thrust_B * velx;
-	P_drag_B = f_drag_B * velx;
-	
-	*f_thrust_SMC_ptr = f_thrust_SMC;
-	*f_thrust_B_ptr = f_thrust_B;
-	*f_drag_SMC_ptr = f_drag_SMC;
-	*f_drag_B_ptr = f_drag_B;
-	
-	*P_thrust_SMC_ptr = P_thrust_SMC;
-	*P_thrust_B_ptr = P_thrust_B;
-	*P_drag_SMC_ptr = P_drag_SMC;
-	*P_drag_B_ptr = P_drag_B;
-	
-	/* return power_thrust; */
-	/* return powerInviscid; */
-	/* return powerDebug; */
-	/* return thrustDebugInv; */
-	/* return thrustDebugVisc1; */
-	/* return thrustDebugVisc2; */
-	
+		P_thrust_SMC = f_thrust_SMC * velx;
+		P_drag_SMC = f_drag_SMC * velx;
+		P_thrust_B = f_thrust_B * velx;
+		P_drag_B = f_drag_B * velx;
+
+		*f_thrust_SMC_ptr = f_thrust_SMC;
+		*f_thrust_B_ptr = f_thrust_B;
+		*f_drag_SMC_ptr = f_drag_SMC;
+		*f_drag_B_ptr = f_drag_B;
+		
+		*P_thrust_SMC_ptr = P_thrust_SMC;
+		*P_thrust_B_ptr = P_thrust_B;
+		*P_drag_SMC_ptr = P_drag_SMC;
+		*P_drag_B_ptr = P_drag_B;
+
 	#endif
 }
 

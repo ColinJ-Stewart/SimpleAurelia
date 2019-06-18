@@ -262,7 +262,7 @@ double Get_SimTimeInCycle(char meshZone)
 		
 		if ( NewTimeStepForThisZone(meshZone) )
 		{
-			Message0("Current time: %lf\ttSim_ex: %lf\ttauSim: %lf\ttimestepSim: %lf\n",
+			Message0("\nCurrent time: %lf\ttSim_ex: %lf\ttauSim: %lf\ttimestepSim: %lf\n",
 				CURRENT_TIME, tSim_ex, tauSim, timestepSim);
 		}
 	}
@@ -274,7 +274,7 @@ double Get_SimTimeInCycle(char meshZone)
 		
 		if ( NewTimeStepForThisZone(meshZone) )
 		{
-			Message0("Current time: %lf\ttSim_sub: %lf\ttauSim: %lf\ttimestepSim: %lf\n",
+			Message0("\nCurrent time: %lf\ttSim_sub: %lf\ttauSim: %lf\ttimestepSim: %lf\n",
 				CURRENT_TIME, tSim_sub, tauSim, timestepSim);
 		}
 	}
@@ -389,7 +389,7 @@ Output:
 ----------------------------------------------------------------*/
 int NewTimeStep()
 {
-	int new_ts;
+	int new_ts = 0;
 	
 	if ((N_TIME != preTime_ex) && (N_TIME != preTime_sub) &&
 	    (N_TIME != preTime_intfc) )

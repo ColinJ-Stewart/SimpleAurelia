@@ -199,34 +199,30 @@ void bubbleSort_double(double arr[], int n)
               swap_dub(&arr[j], &arr[j+1]); 
 } 
 
-/*---------- bubbleSort_double2D ---------------------------------------
-Purpose: Sort array arr in ascending order
-
-from https://www.geeksforgeeks.org/bubble-sort
-
-Input:	FILE *stream	-	File stream
-----------------------------------------------------------------*/
-void bubbleSort_double2D(double *arr, int rows, int cols)
+/**---------- bubbleSort_double2D ---------------------------------------
+* Purpose: Sort 2D array of doubles arr in ascending/descending order. 
+* The array is sorted by the values in the FIRST column.
+*
+* from https://www.geeksforgeeks.org/bubble-sort
+*
+* Input:	double *arr -- array of doubles 
+*			int rows -- number of rows in arr
+*			int cols -- number of cols in arr
+*			char direction -- sorting order: 'a' for ascending,
+*							  'd' for descending
+*
+----------------------------------------------------------------**/
+void bubbleSort_double2D(double *arr, int rows, int cols, char direction)
 { 
    int i, j, k; 
-   
-   /* for (i = 0; i < rows-1; i++) { // Last i elements are already in place*/
-       /* for (j = 0; j < rows-i-1; j++) { */
-           /* if (arr[j][1] > arr[j+1][1]) */
-		   /* {*/
-              /* swap_dub(&arr[j][1], &arr[j+1][1]); */
-			  /* swap_dub(&arr[j][2], &arr[j+1][2]); */
-		   /* }*/
-	   /* }*/
-   /* }*/
 
    for (i = 0; i < rows-1; i++) {	/* Last i elements are already in place   */
        for (j = 0; j < rows-i-1; j++) {
-		   if (arr[j*cols+0] > arr[(j+1)*cols+0]) /* ie if (arr[j][1] > arr[j+1][1]) */
+		   if (( (direction == 'a') && (arr[j*cols+0] > arr[(j+1)*cols+0])) ||
+		   		((direction == 'd') && (arr[j*cols+0] < arr[(j+1)*cols+0])) )
 		   {
 			   for (k = 0; k < cols; k++)
-				swap_dub(&arr[j*cols + k], &arr[(j+1)*cols + k]); /* ie swap_int(&arr[j][k], &arr[j+1][k]); */
-				/* need to change swap func to generalize to >2D array */
+				swap_dub(&arr[j*cols + k], &arr[(j+1)*cols + k]); 
 		   }
 	   }
    }

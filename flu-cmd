@@ -7,7 +7,7 @@
 ;; /file/auto-save/retain-most-recent-files yes
 ;; /file/auto-save/max-files 5
 ;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-/file/transient-export/ensight-g-t/ ES_Aur_v1.1dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 12 y
+/file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
 /solve/set/limiter-warnings? no
 /solve/set/flow-warnings? no
 /solve/set/reporting-interval 100
@@ -39,8 +39,8 @@
 ;; /def/dyn-mesh/zones/create front_out rigid body
 ;; /def/dyn-mesh/zones/create back_out rigid body
 
-/def/dyn-mesh/zones/create front_out , , , , , , , 0.01 , , 0.01 ,
-/def/dyn-mesh/zones/create back_out , , , , , , , 0.006 , , 0.006 ,
+/def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.01 ,
+/def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.006 ,
 
 ;---- Remeshing ------
 ;; /def/dyn-mesh/controls/remesh-param/zone-remeshing yes
@@ -66,6 +66,9 @@
 ;---- Initialize flow ----
 /solve/initialize/initialize-flow
 
+;---- Node Memory control ------
+;; /def/user-defined/user-defined-node-memory 16
+
 ;---- Adaptation control -----
 /adapt/set/coarsen-mesh? no
 /adapt/set/refine-mesh? no
@@ -73,14 +76,16 @@
 /adapt/free-registers yes
 
 ;---- Parallel settings -----
-;; /par/part/auto/across-zones no
+;; /par/part/set/across-zones no
+/par/part/auto/across-zones no
 ;; /par/part/set/origin 0 0.2
 /par/part/set/merge yes 3
 /par/part/set/smooth yes 3
-/par/part/method cartesian-y 2
+/par/part/method cartesian-y 8
 /par/part/use-stored-part
 /par/part/auto/method cartesian-y
-;; /par/load-balance/dynamic-mesh y n 10 5
+/par/load-balance/dynamic-mesh n
+;; /par/load-balance/dynamic-mesh y n 50 100
 /par/load-balance/mesh-adaption no
 /par/load-balance/physical-models no
 
@@ -97,15 +102,16 @@
 /solve/set/time-step 0.0027778
 
 ;; /solve/dual-time-iterate 31000 40
-;; /solve/dual-time-iterate 9400 40
-;; /solve/dual-time-iterate 5 40
+;; /solve/dual-time-iterate 7 40
+/solve/dual-time-iterate 1000 40
 
 
 ;;*********************************************************************
 ;;*** Start saving files with greater resolution in fluent format   ***
 ;;*** AFTER steady state is reached! Restart sim with new settings! ***
 ;;*********************************************************************
-;; /file/auto-save/data-frequency 3
+;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
+;; /file/auto-save/data-frequency 1
 ;; /file/auto-save/root-name Aurelia_v1.1_dev_
 ;; /file/auto-save/append-file-name-with time-step 5
-;; /solve/dual-time-iterate 30 40
+;; /solve/dual-time-iterate 200 40
