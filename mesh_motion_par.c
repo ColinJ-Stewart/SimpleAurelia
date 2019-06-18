@@ -914,7 +914,7 @@ void Get_ParArcLengths(char meshZone, Node *holdNodes[], int i,
 	/* sort the 2D array so the order goes from apex mesh nodes to tip mesh nodes 
 			(i.e. ascending radial distance)  */
 	Message0("\t\t Sorting masterArr \n");
-	bubbleSort_double2D(masterNodeIndex, total_i, cols, 'a'); 
+	bubbleSort_double2D(masterNodeIndex, total_i, cols, 'a');
 
 	Message0("\t\t Breaking masterArr back into vectors \n");
 	for (j = 0; j < total_i; j++)
@@ -1080,7 +1080,7 @@ void Get_tparm(char meshZone, Node *holdNodes[],  double a, double b, double b_s
 	int thisID, localj;
 	int loop;
 	double dif;
-	double arg1, arg2;
+	double arg1, arg2; 
 	
 	
 	/* initialize tparm arrays  */

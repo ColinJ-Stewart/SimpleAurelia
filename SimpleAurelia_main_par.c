@@ -391,6 +391,8 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double *P_thrust_B_ptr = &P_thrust_B;
 		double *P_drag_SMC_ptr = &P_drag_SMC;
 		double *P_drag_B_ptr = &P_drag_B;
+		int print_int;
+
 		/* Message0("\n---NODE%i EXECUTE AT END---\n", myid); */
 		Message0("Force_x at end: %f\n",fx_tot);	
 		
@@ -405,19 +407,25 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double xS, velS, del_xS;
 		double fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B;
 		double P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B;
+		int print_int;
 	#endif
 	
 	
 	/* Commands for ALL (i.e. SERIAL, NODE, and HOST)  */
 	/* - Send data from node0 to host for printing 	   */
-	node_to_host_real_3(x, vel, del_x);
-	node_to_host_real_3(xS, velS, del_xS);
-	node_to_host_real_5(fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
-	node_to_host_real_5(P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B);
-	
+	print_int = 3;
+	if (N_TIME % print_int == 0)
+	{
+		node_to_host_real_3(x, vel, del_x);
+		node_to_host_real_3(xS, velS, del_xS);
+		node_to_host_real_5(fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
+		node_to_host_real_5(P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B);
+	}
 	
 	/* SERIAL/HOST writes out results for instant displacement, vel, force, power, etc.  */
 	#if !RP_NODE
+	if (N_TIME % print_int == 0)
+	{
 		Compute_Averages(vel, fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 		
@@ -425,9 +433,10 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 													
-		Write_to_Disp_OutputFile('s', xS, velS, del_xS,
+		/* Write_to_Disp_OutputFile('s', xS, velS, del_xS,
 								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
-								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);							
+								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);							 */
+	}
 	#endif
 	
 	

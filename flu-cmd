@@ -1,13 +1,13 @@
-/file/read-case mesh12_coarse.cas
+/file/read-case mesh12d_refine2.cas
 
 ;---- Output control -----
-/file/auto-save/data-frequency 0
-/file/auto-save/root-name Aurelia_v1.1_dev_
+/file/auto-save/data-frequency 24
+/file/auto-save/root-name Aur_v1_2_dev10_
 /file/auto-save/append-file-name-with time-step 5
-;; /file/auto-save/retain-most-recent-files yes
-;; /file/auto-save/max-files 5
+/file/auto-save/retain-most-recent-files yes
+/file/auto-save/max-files 100
 ;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-/file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
+;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev10_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 12 y
 /solve/set/limiter-warnings? no
 /solve/set/flow-warnings? no
 /solve/set/reporting-interval 100
@@ -39,8 +39,8 @@
 ;; /def/dyn-mesh/zones/create front_out rigid body
 ;; /def/dyn-mesh/zones/create back_out rigid body
 
-/def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.01 ,
-/def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.006 ,
+/def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.0037 ,
+/def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.0035 ,
 
 ;---- Remeshing ------
 ;; /def/dyn-mesh/controls/remesh-param/zone-remeshing yes
@@ -51,15 +51,20 @@
 
 ;---- Smoothing ------
 ;; /def/dyn-mesh/controls/smooth-param/smoothing-method diffusion
+;; /def/dyn-mesh/controls/smooth-param/diffusion-coeff-function cell-volume
+/def/dyn-mesh/controls/smooth-param/boundary-distance-method y
+
 ;; /def/dyn-mesh/controls/smooth-param/bnd-node-relaxation 0.9
 ;; /def/dyn-mesh/controls/smooth-param/bnd-stiffness-factor 0.1
 ;; /def/dyn-mesh/controls/smooth-param/constant-factor 0.01
-;; /def/dyn-mesh/controls/smooth-param/diffusion-coeff-param 1.5
-;; /def/dyn-mesh/controls/smooth-param/conv-tol 1e-8
-;; /def/dyn-mesh/controls/smooth-param/max-iter 30
-/def/dyn-mesh/controls/smooth-param/rel-conv-tol 1e-5 
-/def/dyn-mesh/controls/smooth-param/skew-smooth-cell-skew-max 0.5
-/def/dyn-mesh/controls/smooth-param/skew-smooth-niter 12
+/def/dyn-mesh/controls/smooth-param/diffusion-coeff-param 1.5
+/def/dyn-mesh/controls/smooth-param/conv-tol 1e-8
+/def/dyn-mesh/controls/smooth-param/max-iter 30
+/def/dyn-mesh/controls/smooth-param/rel-conv-tol 1e-8
+/def/dyn-mesh/controls/smooth-param/skew-smooth-cell-skew-max 0.7
+;; ^ had been 0.5
+/def/dyn-mesh/controls/smooth-param/skew-smooth-niter 20
+;; ^ had been 12
 ;; (rp-var-define 'dynamesh/smooth/fem/amg-alpha 1e-10 ' double #f)
 ;; (rp-var-define 'dynamesh/smooth/fem/amg-cpld-max-cycles 20 ' integer #f)
 
@@ -79,9 +84,9 @@
 ;; /par/part/set/across-zones no
 /par/part/auto/across-zones no
 ;; /par/part/set/origin 0 0.2
-/par/part/set/merge yes 3
-/par/part/set/smooth yes 3
-/par/part/method cartesian-y 8
+/par/part/set/merge yes 0
+/par/part/set/smooth yes 0
+/par/part/method cartesian-y 16
 /par/part/use-stored-part
 /par/part/auto/method cartesian-y
 /par/load-balance/dynamic-mesh n
@@ -96,22 +101,25 @@
 
 ;---- Solver options ----
 /solve/monitors/residual/conv-crit 1e-4 1e-4 1e-4
-/solve/set/under-relax/mom 0.9
-/solve/set/under-relax/press 0.9
-;; /solve/set/time-step 0.0013888
-/solve/set/time-step 0.0027778
+/solve/set/under-relax/mom 0.3
+/solve/set/under-relax/press 0.7
+/solve/set/time-step 0.0013888
+;; /solve/set/time-step 0.0027778
 
-;; /solve/dual-time-iterate 31000 40
+/solve/dual-time-iterate 31000 40
 ;; /solve/dual-time-iterate 7 40
-/solve/dual-time-iterate 1000 40
+;; /solve/dual-time-iterate 16000 40
 
 
 ;;*********************************************************************
 ;;*** Start saving files with greater resolution in fluent format   ***
 ;;*** AFTER steady state is reached! Restart sim with new settings! ***
 ;;*********************************************************************
-;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
+;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev10_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
 ;; /file/auto-save/data-frequency 1
-;; /file/auto-save/root-name Aurelia_v1.1_dev_
+;; /file/auto-save/root-name Aurelia_v1.1_dev8_
 ;; /file/auto-save/append-file-name-with time-step 5
 ;; /solve/dual-time-iterate 200 40
+
+
+/file/write-case-data Aur_v1.2dev10_AfterQuit
