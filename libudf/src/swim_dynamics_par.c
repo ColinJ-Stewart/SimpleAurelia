@@ -59,8 +59,6 @@ double Get_Force_x(Thread *tf)
 }
 
 
-
-
 /*---------- Get_Force2_x -------------------------------------------
 Purpose: 
 
@@ -70,38 +68,60 @@ Output: Returns force in the x-direction
 ----------------------------------------------------------------------- */
 double Get_Force2_x(Thread *tf) 
 {	
-	face_t f;
-	cell_t c;
-	double A[ND_ND];
-	double f_i, f_ip, f_if;
-	double f_p = 0.0, f_f = 0.0, fx = 0;
-	int i;
+	#if RP_HOST
+		return 0.0;
+	#endif
 	
-	/* loop through cells on  surface, calculating power from each  */
-	begin_f_loop(f,tf) 
-	{  
-		F_AREA(A,f,tf);
-					
-		/* _______________________________________________________ */
-		/*		The following code has been verified			   */
-		/* _______________________________________________________ */
-		/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); // exactly equivalent to Compute_Force_And_Moment in x-direction */
+	#if !RP_HOST
+		face_t f;
+		double A[ND_ND];
+		double f_i;
+		double fx = 0.0;
+		/* double	f_ip, f_if; */
+		/* double f_p = 0.0, f_f = 0.0; */
 		
-		f_i = 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);
-		f_ip = 2*M_PI*A[0]*F_P(f,tf);									/* pressure force */
-		f_if = 2*M_PI* (-F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);		/* friction force */
 		
-		f_p = f_p + f_ip;		/* sum up individual pressure contributions */
-		f_f = f_f + f_if;		/* sum up individual friction contributions */
-		fx = fx + f_i;
-		/* _______________________________________________________  */
+		/* loop through cells on  surface, calculating force from each  */
+		begin_f_loop(f,tf) 
+		{
+			if PRINCIPAL_FACE_P(f,tf)
+			{
+				F_AREA(A,f,tf);
+							
+				/* _______________________________________________________ */
+				/*		The following code has been verified			   */
+				/* _______________________________________________________ */
+				/* Exactly equivalent to Compute_Force_And_Moment in x-direction */ 
+				/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); */
+				
+				f_i = 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);
+				fx = fx + f_i;
+				
+				/* sum up individual pressure contributions */
+				/* 
+				f_ip = 2*M_PI*A[0]*F_P(f,tf);
+				f_p = f_p + f_ip;		 
+				*/
+				
+				/* sum up individual friction contributions */
+				/* 	
+				f_if = 2*M_PI* (-F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]);
+				f_f = f_f + f_if;	 
+				*/	
+				
+				/* _______________________________________________________  */
+			}
+		} end_f_loop(f,tf)
 		
-	} end_f_loop(f,tf)
-
-	return fx;
+		#if RP_NODE
+			fx = PRF_GRSUM1(fx);
+		#endif
+		
+		return fx;
+		
+	#endif
 }
 	
-
 
 /*---------- GetBodyVelocity -------------------------------------
 Purpose: 
@@ -125,7 +145,7 @@ double Get_BodyVelocity(Thread *tf, char meshZone, double fx_tot, double *del_x_
 		
 		x_position = Rezero(tf);
 		
-		if( I_AM_NODE_ZERO_P || !PARALLEL)
+		if ((myid == 0) || (myid == 1000000))	
 		{
 			
 			/* Message("\tx_position = %16.12f, ", x_position); */
@@ -340,7 +360,7 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, doubl
 		
 		x_position = Rezero(tf);
 		
-		if( I_AM_NODE_ZERO_P || !PARALLEL)
+		if ((myid == 0) || (myid == 1000000))	
 		{
 			
 			/* Message("\tx_position = %16.12f, ", x_position); */
@@ -467,39 +487,3 @@ double Get_BodyVelocity_Implicit(Thread *tf, char meshZone, double fx_tot, doubl
 	
 	return vel;
 }
-
-
-/* ---------- Rezero --------------------------------------------- */
-/* Purpose:  															*/
-/* 																		 */
-/* Input:	Thread *tf - face thread for zone which touches axis of symmetry y=0 */
-/* ----------------------------------------------------------------  */
-/* double Rezero (Thread *tf) {
-	double xposition = 0.0;
-	
-	#if !RP_HOST
-	face_t f;
-	int n;
-	Node *v;
-	
-	
-	begin_f_loop(f,tf) 
-	{  
-		if PRINCIPAL_FACE_P(f,tf)
-		{
-			f_node_loop(f,tf,n) 
-			{
-				v = F_NODE(f,tf,n);
-				if (NODE_Y(v) < 1E-10)
-					xposition = NODE_X(v);
-			}
-		}
-	}
-	end_f_loop(f,tf)
-	
-	xposition = PRF_GRSUM1(xposition);  /* = xposition + 0.0 + 0.0 ... + 0.0 */
-	/* #endif
-	
-	return xposition;
- } */
-

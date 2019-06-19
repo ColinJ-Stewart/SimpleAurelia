@@ -313,8 +313,8 @@ Input:	tparm_ptr	-	pointer to tparm so it can be modified by
 		
 Output:		none. All changes are made to tparm via tparm_ptr
 ---------------------------------------------------------------- */
-void Load_a_sub(double *a_sub_ptr, double a, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
-				int idArray[][2], double coordArray_y_flex[], double arclengthArray_unflex[]) 
+void Load_a_sub(double *a_sub_ptr, double a, Node *holdNodes[], int nNodes, 
+				double SmaxUnflexed, int idArray[][2], double arclengthArray_unflex[]) 
 {
     int splineN, i, j, c;
 	double coeffDelta, Si, Snorm, del, dif, S_End, S_EndNorm;
@@ -406,8 +406,8 @@ Input:	tparm_ptr	-	pointer to tparm so it can be modified by
 		
 Output:		none. All changes are made to tparm via tparm_ptr
 ---------------------------------------------------------------- */
-void Load_b_sub(double *b_sub_ptr, double b, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
-				int idArray[][2], double coordArray_x_flex[], double arclengthArray_unflex[])
+void Load_b_sub(double *b_sub_ptr, double b, Node *holdNodes[], int nNodes, 
+				double SmaxUnflexed, int idArray[][2], double arclengthArray_unflex[])
 {
     int splineN, i, j, c;
 	double coeffDelta, Si, Snorm, del, dif, this_input, S_End, S_EndNorm;

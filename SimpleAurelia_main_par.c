@@ -205,10 +205,11 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		Print_Zone_Header(meshZone);
 		
 		/* ------------- MEMORY ------------- */ 
-		if ( NewTimeStepForThisZone(meshZone) )
+		if ( NewTimeStepForThisZone('e') && NewTimeStepForThisZone('s') )
 		{
-			Message("New time step. Reinitializing node memory\n");
-			Reinit_node_mem_int(tf, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
+			Message0("\nNew time step. Reinitializing node memory\n");
+			Reinit_node_mem_int(tf_ex, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
+			Reinit_node_mem_int(tf_sub, 0, 0);	/* Re-Initialize node memory slot 0 to 0 */
 		}
 			
 		/* ------------- TIME  --------------  */	
@@ -221,22 +222,31 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		fx_sub = Get_Force2_x(tf_sub);
 		fx_tot = fx_ex + fx_sub;
 		if ( NewTimeStepForThisZone(meshZone) )
-			Message("Force_x: %lf, fx_ex: %lf, fx_sub: %lf\n", fx_tot, fx_ex, fx_sub);	
+			Message0("Force_x: %lf, fx_ex: %lf, fx_sub: %lf\n", fx_tot, fx_ex, fx_sub);	
 		
 		/* ------ SWIMMING DYNAMICS -------  */
 		if((LET_IT_SWIM) && (N_TIME > 2)) 
 		{
 			if ( NewTimeStepForThisZone(meshZone) )
-				Message("Calculating swimming speed... \n");	
+				Message0("Calculating swimming speed... \n");	
 			vel = Get_BodyVelocity(tf, meshZone, fx_tot, del_x_ptr);
 			if ( NewTimeStepForThisZone(meshZone) )
-				Message("\tvel_x = %lf, del_x = %lf\n", vel, del_x);	/** make Message0 after DEBUG **/
+				Message0("\tvel_x = %lf, del_x = %lf\n", vel, del_x);	/** make Message0 after DEBUG **/
 		}
 
 		/* ------ MESH MOTION/KINEMATICS -------  */
 		if ( NewTimeStepForThisZone(meshZone) )
-			Message("Moving jellyfish (node %i)... \n", myid);
+		{	
+			Message0("Moving jellyfish (node %i)... \n", myid);
+		}
 		Calc_Mesh_Movement(tf, meshZone, tauSim, del_x, vel);
+
+		/* ------ STORE THIS TIME STEP # -------  */
+		if ( NewTimeStepForThisZone(meshZone) )
+		{
+			Message0("---FINISHED GRID MOTION UDF---\n\n");
+		}
+		
 	#endif 
 	
 	
@@ -248,7 +258,7 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 	
 	#if RP_HOST
 		/* ------ PRINT ZONE HEADER ------  */
-		Print_Zone_Header(meshZone);
+		/* Print_Zone_Header(meshZone); */
 	#endif
 	
 	#if !RP_NODE
@@ -269,15 +279,11 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 									0, 0, 0, 0, 
 									0);
 		}
+
 	#endif
 	
-	
-	/* ------ STORE THIS TIME STEP # -------  */
-	/* Message("Updating counters... "); */
 	UpdateCounters(meshZone);
-	/* Message("Done.\n"); */
-	if ( NewTimeStepForThisZone(meshZone) )
-		Message("---FINISHED GRID MOTION UDF---\n");
+
 }
 
 
@@ -385,6 +391,8 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double *P_thrust_B_ptr = &P_thrust_B;
 		double *P_drag_SMC_ptr = &P_drag_SMC;
 		double *P_drag_B_ptr = &P_drag_B;
+		int print_int;
+
 		/* Message0("\n---NODE%i EXECUTE AT END---\n", myid); */
 		Message0("Force_x at end: %f\n",fx_tot);	
 		
@@ -399,20 +407,25 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		double xS, velS, del_xS;
 		double fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B;
 		double P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B;
-		Message("---HOST EXECUTE AT END---\n");
+		int print_int;
 	#endif
 	
 	
 	/* Commands for ALL (i.e. SERIAL, NODE, and HOST)  */
 	/* - Send data from node0 to host for printing 	   */
-	node_to_host_real_3(x, vel, del_x);
-	node_to_host_real_3(xS, velS, del_xS);
-	node_to_host_real_5(fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
-	node_to_host_real_5(P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B);
-	
+	print_int = 3;
+	if (N_TIME % print_int == 0)
+	{
+		node_to_host_real_3(x, vel, del_x);
+		node_to_host_real_3(xS, velS, del_xS);
+		node_to_host_real_5(fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
+		node_to_host_real_5(P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B);
+	}
 	
 	/* SERIAL/HOST writes out results for instant displacement, vel, force, power, etc.  */
 	#if !RP_NODE
+	if (N_TIME % print_int == 0)
+	{
 		Compute_Averages(vel, fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 		
@@ -420,9 +433,10 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 													
-		Write_to_Disp_OutputFile('s', xS, velS, del_xS,
+		/* Write_to_Disp_OutputFile('s', xS, velS, del_xS,
 								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
-								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);							
+								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);							 */
+	}
 	#endif
 	
 	
