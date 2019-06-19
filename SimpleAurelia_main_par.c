@@ -79,7 +79,7 @@ const double PAUSE_FRAC = 0.0;			/* creates a pause after relaxation = PAUSE_FRA
 
 /* Model animal measurements  */
 const double DIAMETER = 0.155;									/* relaxed bell diameter [m] */
-const double thickness = 0.155 * (53.0/450.0);				/* relaxed bell center axis thickness [m]. The second value is the ratio of thickness [px] to D [px] in Dabiri 2011 Aurelia video */
+const double thickness = 0.155 * (56.0/450.0);				/* relaxed bell center axis thickness [m]. The second value is the ratio of thickness [px] to D [px] in Dabiri 2011 Aurelia video */
 const double t_contract = (66.0-42.0)/30.0; 				/* contraction duration [s] */
 const double t_relax = (128.0-66.0)/30.0; 					/* relaxation duration [s] */
 const double PERIOD = (66.0-42.0)/30.0 + (128.0-66.0)/30.0;	/* period = 2.86667 [s] */

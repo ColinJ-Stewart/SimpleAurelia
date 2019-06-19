@@ -2,16 +2,16 @@
 
 /** global variables **/
 static const double ai = 0.0775;							/* initial/max radius [m] */
-static const double bi = 0.039336;							/* initial bell apex-centroid height [m] */
-static const double di = 0.00447;							/* initial centroid-bell margin height [m] */
+static const double bi = 0.0390;							/* initial bell apex-centroid height [m] */
+static const double di = 0.00156;							/* initial centroid-bell margin height [m] */
 
-static const double pa = 0.258064516129032;					/* y-contraction % = 1-(D_contract/D_relax) */
-static const double pb = 0.198;								/* bell apex-centroid contraciton % = 1.1*0.18 */
-static const double pdd = -4.275382550335571;				/* centroid-bell margin contraction %  */
+static const double pa = 0.243225806451613;					/* y-contraction % = 1-(D_contract/D_relax) */
+static const double pb = 0.165;								/* bell apex-centroid contraciton % = 1.1*0.18 */
+static const double pdd = -16.0;							/* centroid-bell margin contraction %  */
 
 static const double g1 = 1.0;								/* parameters for flex */
-static const double g2 = 1.15;
-static const double pg = 0.5;
+static const double g2 = 1.35;
+static const double pg = 0.4;
 static const double k = 8.0;
 
 static double xTip = 0.0;
