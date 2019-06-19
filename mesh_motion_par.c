@@ -114,6 +114,8 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 		a_sub[j] = 0;
 		b_sub[j] = 0;
 		g[j] = 0.0;
+		gx[j] = 0.0;
+		gy[j] = 0.0;
 	}
 
 	/* calculate the current values of kinematic functions sa, sb, sd  */
@@ -194,7 +196,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	
 	/*------------ find flex point (node) ------------ */	 
 	Message0("\tFinding flex points... \n");
-	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
+	/* Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray); */
 	Get_FlexPoint_x(meshZone, holdNodes, total_i, SmaxUnflexed, sg, gx, idArray, tau/PERIOD);
 	Get_FlexPoint_y(meshZone, holdNodes, total_i, SmaxUnflexed, sg, gy, idArray, tau/PERIOD);
 	
@@ -225,16 +227,16 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				/* calc g for this node  */				
 				if (meshZone == 'e') {
 					/* flexed position  */
-					N_UDMI(v,4) = x + del_x + (g[j]*b*cos(tparm_ex[j]) + b);	/* new x position = current position + forward swimming displacement + kinematic motion */
-					N_UDMI(v,5) = g[j]*a*sin(tparm_ex[j]);						/* new y position = current position + kinematic motion	 */
+					N_UDMI(v,4) = x + del_x + (gx[j]*b*cos(tparm_ex[j]) + b);	/* new x position on exum = current position + forward swimming displacement + kinematic motion */
+					N_UDMI(v,5) = gy[j]*a*sin(tparm_ex[j]);						/* new y position on exum = current position + kinematic motion	 */
 					/* unflexed position  */
 					N_UDMI(v,12) = x + del_x + (b*cos(tparm_ex[j]) + b);	/* g[j] term omitted  */
 					N_UDMI(v,13) = a*sin(tparm_ex[j]);						/* g[j] term omitted  */
 				}
 				else if (meshZone == 's') {
 					/* flexed position  */
-					N_UDMI(v,4) = (x-thickness) + del_x + (g[j]*b_sub[j]*cos(tparm_sub[j]) + b);
-					N_UDMI(v,5) = g[j]*a_sub[j]*sin(tparm_sub[j]);
+					N_UDMI(v,4) = (x-thickness) + del_x + (gx[j]*b_sub[j]*cos(tparm_sub[j]) + b);		/* new x position on subum */
+					N_UDMI(v,5) = gy[j]*a_sub[j]*sin(tparm_sub[j]);										/* new y position on subum */
 					/* unflexed position  */
 					N_UDMI(v,12) = (x-thickness) + del_x + (b_sub[j]*cos(tparm_sub[j]) + b);
 					N_UDMI(v,13) = a_sub[j]*sin(tparm_sub[j]);
@@ -1764,8 +1766,8 @@ void Get_FlexPoint_x(char meshZone, Node *holdNodes[], int nNodes, double SmaxUn
 	
 	/* -- sync local g arrays to make global array --  */
 	#if PARALLEL
-	/* Message("\n*Sync*\n"); */
-	PRF_GRSUM(g, MAX_NODES, dworkj); 
+		/* Message("\n*Sync*\n"); */
+		PRF_GRSUM(gx, MAX_NODES, dworkj); 
 	#endif
 	
 
@@ -1843,8 +1845,8 @@ void Get_FlexPoint_y(char meshZone, Node *holdNodes[], int nNodes, double SmaxUn
 	
 	/* -- sync local g arrays to make global array --  */
 	#if PARALLEL
-	/* Message("\n*Sync*\n"); */
-	PRF_GRSUM(g, MAX_NODES, dworkj); 
+		/* Message("\n*Sync*\n"); */
+		PRF_GRSUM(gy, MAX_NODES, dworkj); 
 	#endif
 	
 
