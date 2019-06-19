@@ -84,6 +84,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	Node *holdNodes[MAX_NODES];
 	double a, b, d;
 	double a_sub[MAX_NODES], b_sub[MAX_NODES], g[MAX_NODES];
+	double gx[MAX_NODES], gy[MAX_NODES];
 	double *a_sub_ptr = a_sub;
 	double *b_sub_ptr = b_sub;
 	double sa = 0.0;
@@ -194,6 +195,8 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 	/*------------ find flex point (node) ------------ */	 
 	Message0("\tFinding flex points... \n");
 	Get_FlexPoint(meshZone, holdNodes, total_i, SmaxUnflexed, sg, g, idArray);
+	Get_FlexPoint_x(meshZone, holdNodes, total_i, SmaxUnflexed, sg, gx, idArray, tau/PERIOD);
+	Get_FlexPoint_y(meshZone, holdNodes, total_i, SmaxUnflexed, sg, gy, idArray, tau/PERIOD);
 	
 	/*--- Now that arclength, tparm, flex, etc. have been assigned to --- */
 	/*--- any remeshed nodes, reset the new node flag.				  --- */
@@ -1689,6 +1692,167 @@ void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnfl
 
 	#endif
 }
+
+
+/*---------- Get_FlexPoint_x -------------------------------------
+Purpose: Returns the tparm value for both the ex and sub surfaces
+
+Input:	holdNodes			-	array of sorted nodes, from apex to margin
+		i 					-	total number of nodes in this zone
+		SmaxUnflexed		-	maximum arc length of this zone	BEFORE flexing	
+		
+Output:		i1		-	index of holdNodes where flex starts
+---------------------------------------------------------------- */
+void Get_FlexPoint_x(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
+					double sg, double gx[], int idArray[][2], double tau_norm) 
+{
+	#if !RP_HOST
+	int i1 = nNodes-1;
+	int j;
+	int lastOldNode, nextOldNode, iL, iR, iL_is_oldNode, iR_is_oldNode, oldNode;
+	Node *v;
+	double Si;
+	double Sflex = pg*SmaxUnflexed;
+	double flexpct_iL, flexpct_iR, flexpct_j, flexspacing_iL, flexspacing_iR, flexspacing_j;
+	int thisID, localj;
+	double dworkj[MAX_NODES];
+	
+	/* First loop: find first node that is flexing (i.e. node to the right of flex point).  */
+	for (j = 0; j < nNodes; j++) 
+	{ 		
+		thisID = idArray[j][0];		/* the comp node ID corresponding to node j in global holdNodes */
+		localj = idArray[j][1];	/* local holdNodes index for node j on comp node thisID */
+
+		if (myid == thisID)
+		{
+			v = holdNodes[localj];
+			if (NodeIsTip(v)) {
+				Si = SmaxUnflexed;
+				N_UDMI(v,11) = 1.0;		/* percent flex */
+			}
+			else {
+				Si = N_UDMI(v,14);
+				N_UDMI(v,11) = 0.0;		/* percent flex (initialize) */
+			}
+
+			if (Si >= Sflex) {
+				N_UDMI(v,11) = pow((Si - Sflex)/(SmaxUnflexed - Sflex), k);
+				if (j < i1)
+					i1 = j;
+			}
+			/* // Message("j:%i  Si = %lf, Sflex = %lf, SmaxUnflexed = %lf, i1 = %i\n", j, Si, Sflex, SmaxUnflexed, i1); */
+		}
+	}
+	
+	
+	/* Second loop: Assign flex values.  */
+	for (j = 0; j < nNodes; j++) 
+	{
+		thisID = idArray[j][0];		/* the comp node ID corresponding to node j in global holdNodes */
+		localj = idArray[j][1];	/* local holdNodes index for node j on comp node thisID */
+
+		if (myid == thisID)
+		{
+			v = holdNodes[localj];
+			flexpct_j = N_UDMI(v,11);
+			flexspacing_j = pow(flexpct_j, 1.0/k);
+			
+			gx[j] = g1 + 0.8*tau_norm * flexpct_j * (g2-g1) *sg;	
+		}
+	}
+	
+	
+	/* -- sync local g arrays to make global array --  */
+	#if PARALLEL
+	/* Message("\n*Sync*\n"); */
+	PRF_GRSUM(g, MAX_NODES, dworkj); 
+	#endif
+	
+
+	#endif
+}
+
+
+/*---------- Get_FlexPoint_y -------------------------------------
+Purpose: Returns the tparm value for both the ex and sub surfaces
+
+Input:	holdNodes			-	array of sorted nodes, from apex to margin
+		i 					-	total number of nodes in this zone
+		SmaxUnflexed		-	maximum arc length of this zone	BEFORE flexing	
+		
+Output:		i1		-	index of holdNodes where flex starts
+---------------------------------------------------------------- */
+void Get_FlexPoint_y(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
+					double sg, double gy[], int idArray[][2], double tau_norm) 
+{
+	#if !RP_HOST
+	int i1 = nNodes-1;
+	int j;
+	int lastOldNode, nextOldNode, iL, iR, iL_is_oldNode, iR_is_oldNode, oldNode;
+	Node *v;
+	double Si;
+	double Sflex = pg*SmaxUnflexed;
+	double flexpct_iL, flexpct_iR, flexpct_j, flexspacing_iL, flexspacing_iR, flexspacing_j;
+	int thisID, localj;
+	double dworkj[MAX_NODES];
+	
+	/* First loop: find first node that is flexing (i.e. node to the right of flex point).  */
+	for (j = 0; j < nNodes; j++) 
+	{ 		
+		thisID = idArray[j][0];		/* the comp node ID corresponding to node j in global holdNodes */
+		localj = idArray[j][1];	/* local holdNodes index for node j on comp node thisID */
+
+		if (myid == thisID)
+		{
+			v = holdNodes[localj];
+			if (NodeIsTip(v)) {
+				Si = SmaxUnflexed;
+				N_UDMI(v,11) = 1.0;		/* percent flex */
+			}
+			else {
+				Si = N_UDMI(v,14);
+				N_UDMI(v,11) = 0.0;		/* percent flex (initialize) */
+			}
+
+			if (Si >= Sflex) {
+				N_UDMI(v,11) = pow((Si - Sflex)/(SmaxUnflexed - Sflex), k);
+				if (j < i1)
+					i1 = j;
+			}
+			/* // Message("j:%i  Si = %lf, Sflex = %lf, SmaxUnflexed = %lf, i1 = %i\n", j, Si, Sflex, SmaxUnflexed, i1); */
+		}
+	}
+	
+	
+	/* Second loop: Assign flex values.  */
+	for (j = 0; j < nNodes; j++) 
+	{
+		thisID = idArray[j][0];		/* the comp node ID corresponding to node j in global holdNodes */
+		localj = idArray[j][1];	/* local holdNodes index for node j on comp node thisID */
+
+		if (myid == thisID)
+		{
+			v = holdNodes[localj];
+			flexpct_j = N_UDMI(v,11);
+			flexspacing_j = pow(flexpct_j, 1.0/k);
+			
+			gy[j] = g1 + (1-tau_norm) * flexpct_j * (g2-g1) *sg;	
+		}
+	}
+	
+	
+	/* -- sync local g arrays to make global array --  */
+	#if PARALLEL
+	/* Message("\n*Sync*\n"); */
+	PRF_GRSUM(g, MAX_NODES, dworkj); 
+	#endif
+	
+
+	#endif
+}
+
+
+
 
 
 
