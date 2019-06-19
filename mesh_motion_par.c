@@ -223,6 +223,7 @@ void Calc_Kinematics_and_Move(Thread *tf, char meshZone, double tau, double del_
 				
 				/* kinematic motion  */
 				/* Message("j:%i  v:%i   g = %lf\n", j, v, g[j]); */
+				/* Message("j:%i  v:%i   gx = %lf   gy = %lf\n", j, v, gx[j], gy[j]); */
 				/* g[j] = 1.0; */
 				/* calc g for this node  */				
 				if (meshZone == 'e') {
