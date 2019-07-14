@@ -1,13 +1,14 @@
-/file/read-case mesh12d_refine2.cas
+/file/read-case mesh13_coarse.cas
 
 ;---- Output control -----
-/file/auto-save/data-frequency 24
-/file/auto-save/root-name Aur_v1_2_dev10_
+/file/auto-save/data-frequency 0
+;; /file/auto-save/data-frequency 24
+/file/auto-save/root-name Aur_v1_3_coarse_
 /file/auto-save/append-file-name-with time-step 5
 /file/auto-save/retain-most-recent-files yes
-/file/auto-save/max-files 100
+/file/auto-save/max-files 200
 ;; /file/transient-export/tecplot TecAurelia_finer1_ypart axis_bot axis_top exum inlet int_fluid outlet subum wall '() axial-velocity radial-velocity cell-partition-active mark-poor-elememts () tecplt 12 time-step
-;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev10_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 12 y
+/file/transient-export/ensight-g-t/ ES_Aur_v1.3_coarse_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 12 y
 /solve/set/limiter-warnings? no
 /solve/set/flow-warnings? no
 /solve/set/reporting-interval 100
@@ -15,9 +16,6 @@
 
 ;---- Boundary Conditions ------
 /def/b-c/wall wall_mid y motion-bc-stationary y shear-bc-spec-shear n 0 n 0
-
-;---- Node memory control -----
-/def/user-defined/user-defined-node-memory 16
 
 ;---- Dyn mesh ------
 ;; /def/dyn-mesh/dynamic-mesh? y n n n n
@@ -39,8 +37,19 @@
 ;; /def/dyn-mesh/zones/create front_out rigid body
 ;; /def/dyn-mesh/zones/create back_out rigid body
 
-/def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.0037 ,
-/def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.0035 ,
+;; ------- Set the layering height in front and behind jellyfish zone -------
+
+++++ coarse
+/def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.0148 ,
+/def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.0140 ,
+
+;; ++++ refine1
+;; /def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.0074 ,
+;; /def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.0070 ,
+
+;; ++++ refine2
+;; /def/dyn-mesh/zones/create front_out , , , , , , , 0.0 , , 0.0037 ,
+;; /def/dyn-mesh/zones/create back_out , , , , , , , 0.0 , , 0.0035 ,
 
 ;---- Remeshing ------
 ;; /def/dyn-mesh/controls/remesh-param/zone-remeshing yes
@@ -103,23 +112,25 @@
 /solve/monitors/residual/conv-crit 1e-4 1e-4 1e-4
 /solve/set/under-relax/mom 0.3
 /solve/set/under-relax/press 0.7
-/solve/set/time-step 0.0013888
-;; /solve/set/time-step 0.0027778
+;; /solve/set/time-step 0.0013888
+/solve/set/time-step 0.0027778
 
-/solve/dual-time-iterate 31000 40
-;; /solve/dual-time-iterate 7 40
-;; /solve/dual-time-iterate 16000 40
+;; /solve/dual-time-iterate 31000 40
+/solve/dual-time-iterate 16000 40
+;; /solve/dual-time-iterate 2000 40
+;; /solve/dual-time-iterate 1 40
+
 
 
 ;;*********************************************************************
 ;;*** Start saving files with greater resolution in fluent format   ***
 ;;*** AFTER steady state is reached! Restart sim with new settings! ***
 ;;*********************************************************************
-;; /file/transient-export/ensight-g-t/ ES_Aur_v1.2dev10_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
+;; /file/transient-export/ensight-g-t/ ES_Aur_v1.3_coarse_ int_fluid_back int_fluid_front int_fluid_mid () fluid_back fluid_front fluid_mid () pressure cell-partition-active cell-partition-stored () n y ensight1 6 y
 ;; /file/auto-save/data-frequency 1
-;; /file/auto-save/root-name Aurelia_v1.1_dev8_
+;; /file/auto-save/root-name Aurelia_v1.3_coarse_
 ;; /file/auto-save/append-file-name-with time-step 5
 ;; /solve/dual-time-iterate 200 40
 
 
-/file/write-case-data Aur_v1.2dev10_AfterQuit
+/file/write-case-data Aur_v1.3_AfterQuit y

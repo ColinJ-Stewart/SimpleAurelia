@@ -70,7 +70,7 @@ Change log:
 #include "timing_and_counters_par.h"
 #include "user_mem_mgmt_par.h"
 
-#define NUM_INPUT_FILES 6
+#define NUM_INPUT_FILES 8
 #define BUFFER_SIZE 1024
 
 /* Simulation settings  */
@@ -117,12 +117,16 @@ DEFINE_INIT(init_node_mem, domain)
 	int i;
 	char buffer[NUM_INPUT_FILES][BUFFER_SIZE];
 	
-	
-	/* Initialize memory  */
+	/* Make adjustments to mesh if necessary */
 	#if !RP_HOST
 		Thread *tf_ex = Lookup_Thread(domain, EX_ZONE);			/* might not be needed with the getForces function */
 		Thread *tf_sub = Lookup_Thread(domain, SUB_ZONE);
-		
+
+		Message("Tip node coords fixed.\n");
+		Fix_tip_node_coords(tf_ex, 0.040560000000000, 0.077428862018653);
+		Fix_tip_node_coords(tf_sub, 0.040560000000000, 0.077428862018653);
+	
+		/* Initialize memory  */
 		Init_node_mem(tf_ex);
 		Init_node_mem(tf_sub); 
 		
@@ -138,6 +142,8 @@ DEFINE_INIT(init_node_mem, domain)
 		sprintf(buffer[3], "SimpleAureliaSplineCoeff_s%c.txt", 'g');
 		sprintf(buffer[4], "SimpleAureliaSplineCoeff_asub.txt");
 		sprintf(buffer[5], "SimpleAureliaSplineCoeff_bsub.txt");
+		sprintf(buffer[6], "SimpleAureliaSplineCoeff_sgx.txt");
+		sprintf(buffer[7], "SimpleAureliaSplineCoeff_sgy.txt");
 
 		for (i = 0; i < NUM_INPUT_FILES; i++)
 		{
@@ -165,9 +171,71 @@ DEFINE_GRID_MOTION(Jelly_motion,domain,dt,time,dtime)
 		/* --------- INITIALIZE VARS ---------  */
 		char meshZone = '\0';
 		int meshZoneTemp;
-		
+		double tau;
+		double sa = 0.0;
+		double sb = 0.0;
+		double sd = 0.0;
+		double sg = 0.0;
+		double sgx = 0.0;
+		double sgy = 0.0;
+		double *sa_ptr = &sa;
+		double *sb_ptr = &sb;
+		double *sd_ptr = &sd;
+		double *sg_ptr = &sg;
+		double *sgx_ptr = &sgx;
+		double *sgy_ptr = &sgy;
+		FILE *fkin;
+		int cycleN = Get_CycleNumber();
+
 		/* ------ PRINT TIME STEP HEADER ---------  */
 		Print_Timestep_Header();
+
+		/**
+		 *! Debug
+		 **/
+
+		tau = Get_SimTimeInCycle('e');
+
+		/* calculate the current values of kinematic functions sa, sb, sd  */
+		Load_sa(tau/PERIOD, sa_ptr);
+		Load_sb(tau/PERIOD, sb_ptr);
+		Load_sd(tau/PERIOD, sd_ptr);
+		Load_sg(tau/PERIOD, sg_ptr);
+		Load_sgx(tau/PERIOD, sgx_ptr);
+		Load_sgy(tau/PERIOD, sgy_ptr);
+
+		if ( NewTimeStepForThisZone('e') )
+		{
+			if (N_TIME == 0)
+			{
+				fkin = fopen("kinematics.txt","w+");
+				fprintf(fkin,"Time (s)\t");
+				fprintf(fkin,"Cycle #\t");
+				fprintf(fkin,"Tau\t");
+				fprintf(fkin,"Tau/Period\t");
+				fprintf(fkin,"sa\t");
+				fprintf(fkin,"sb\t");
+				fprintf(fkin,"sd\t");
+				fprintf(fkin,"sg\t");
+				fprintf(fkin,"sgx\t");
+				fprintf(fkin,"sgy\n");
+				fclose(fkin);
+			}
+
+			fkin = fopen("kinematics.txt","a+");
+			fprintf(fkin,"%f\t",CURRENT_TIME);
+			fprintf(fkin,"%i\t",cycleN);
+			fprintf(fkin,"%16.12f\t",tau);
+			fprintf(fkin,"%16.12f\t",tau/PERIOD);
+			fprintf(fkin,"%16.12f\t",sa);
+			fprintf(fkin,"%16.12f\t",sb);
+			fprintf(fkin,"%16.12f\t",sd);
+			fprintf(fkin,"%16.12f\t",sg);
+			fprintf(fkin,"%16.12f\t",sgx);
+			fprintf(fkin,"%16.12f\n",sgy);
+			fclose(fkin);
+		}
+
 	#endif
 	
 	
@@ -414,18 +482,18 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 	/* Commands for ALL (i.e. SERIAL, NODE, and HOST)  */
 	/* - Send data from node0 to host for printing 	   */
 	print_int = 3;
-	if (N_TIME % print_int == 0)
-	{
+	/* if (N_TIME % print_int == 0)
+	{ */
 		node_to_host_real_3(x, vel, del_x);
 		node_to_host_real_3(xS, velS, del_xS);
 		node_to_host_real_5(fx_tot, f_thrust_SMC, f_thrust_B, f_drag_SMC, f_drag_B);
 		node_to_host_real_5(P_in, P_thrust_SMC, P_thrust_B, P_drag_SMC, P_drag_B);
-	}
+	/* } */
 	
 	/* SERIAL/HOST writes out results for instant displacement, vel, force, power, etc.  */
 	#if !RP_NODE
-	if (N_TIME % print_int == 0)
-	{
+	/* if (N_TIME % print_int == 0)
+	{ */
 		Compute_Averages(vel, fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);
 		
@@ -436,7 +504,7 @@ DEFINE_EXECUTE_AT_END(forces_at_end)
 		/* Write_to_Disp_OutputFile('s', xS, velS, del_xS,
 								fx_tot, 	f_thrust_SMC, 	f_thrust_B, f_drag_SMC, 	f_drag_B,
 								P_in, 	P_thrust_SMC, 	P_thrust_B, P_drag_SMC, 	P_drag_B);							 */
-	}
+	/* } */
 	#endif
 	
 	

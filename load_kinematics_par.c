@@ -7,6 +7,8 @@ static int readInCoeff_sa = 0;
 static int readInCoeff_sb = 0;
 static int readInCoeff_sd = 0;
 static int readInCoeff_sg = 0;
+static int readInCoeff_sgx = 0;
+static int readInCoeff_sgy = 0;
 static int readInCoeff_a_sub = 0;
 static int readInCoeff_b_sub = 0;
 
@@ -14,6 +16,8 @@ static double ccoeff_sa[100][4];
 static double ccoeff_sb[100][4];
 static double ccoeff_sd[100][4];
 static double ccoeff_sg[100][4];
+static double ccoeff_sgx[100][4];
+static double ccoeff_sgy[100][4];
 static double ccoeff_a_sub[100][4];
 static double ccoeff_b_sub[100][4];
 
@@ -298,6 +302,143 @@ void Load_sg(double t_norm, double *sg_ptr)
 
 }
 
+
+/*---------- Load_sgx ---------------------------------------
+Purpose: 
+
+Input:	
+	t_norm = current time on [0,1]
+
+Output: sg
+---------------------------------------------------------------- */
+void Load_sgx(double t_norm, double *sgx_ptr)
+{
+	int splineN, i, j, c;
+	double sold, coeffDelta, tDelta;
+	char buffer1[1024], temp[400], line[70];
+	FILE *finp;
+	
+	/* Message("\ngot to sgx function\n"); */
+	
+	/*  Read in cubic spline coefficients from text files  */
+	/*! Probably should move this function to be read in on loading (EXECUTE_ON_LOADING)  */
+	if (!readInCoeff_sgx)
+	{
+		/* Open the input file stream  */
+		#if !PARALLEL
+			sprintf(buffer1, "SimpleAureliaSplineCoeff_sgx.txt");		
+		#endif
+		
+		#if PARALLEL
+			sprintf(buffer1, "/tmp/SimpleAureliaSplineCoeff_sgx.txt");
+		#endif	
+		finp = fopen(buffer1,"r");	
+		if(finp == NULL) 
+			Error("Error opening files. (sgx)\n");
+		
+		/*read until EOF reached in input  */ 
+		/* Message("\nSplines: \n"); */
+		i = 1;
+		while( i < numSplines + 5) 
+		{
+			if (i < 5) 
+				fgets(temp, sizeof(temp), finp); /* read the 4 header lines; do nothing  */
+			else 
+			{
+				fgets(line, sizeof(line), finp);
+				c = i-5;
+				sscanf(line, "%lf %lf %lf %lf", &ccoeff_sgx[c][3], &ccoeff_sgx[c][2],
+					&ccoeff_sgx[c][1], &ccoeff_sgx[c][0]);
+				/* Message("%lf  %lf  %lf  %lf\n",ccoeff_sgx[c][3],ccoeff_sgx[c][2],ccoeff_sgx[c][1],ccoeff_sgx[c][0]); */
+			}
+			
+			i++;
+		}
+		
+		fclose(finp);
+		readInCoeff_sgx = 1;
+	}
+	
+	/* compute s using the spline coefficients  */
+	coeffDelta = 1.0 / numSplines;
+	splineN =  floor(t_norm/coeffDelta);
+	tDelta = fmod(t_norm, coeffDelta);
+	for( j = 0; j < 4; j++) 
+	{
+		*sgx_ptr += ccoeff_sgx[splineN][j] * pow(tDelta,j);
+	}
+	/* Message("\ncoeffDelta = %lf, splineN = %i, tDelta = %lf, sgx = %lf\n",coeffDelta,splineN,tDelta,*sgx_ptr); */
+
+}
+
+
+/*---------- Load_sgy ---------------------------------------
+Purpose: 
+
+Input:	
+	t_norm = current time on [0,1]
+
+Output: sg
+---------------------------------------------------------------- */
+void Load_sgy(double t_norm, double *sgy_ptr)
+{
+	int splineN, i, j, c;
+	double sold, coeffDelta, tDelta;
+	char buffer1[1024], temp[400], line[70];
+	FILE *finp;
+	
+	/* Message("\ngot to sgy function\n"); */
+	
+	/*  Read in cubic spline coefficients from text files  */
+	/*! Probably should move this function to be read in on loading (EXECUTE_ON_LOADING)  */
+	if (!readInCoeff_sgy)
+	{
+		/* Open the input file stream  */
+		#if !PARALLEL
+			sprintf(buffer1, "SimpleAureliaSplineCoeff_sgy.txt");		
+		#endif
+		
+		#if PARALLEL
+			sprintf(buffer1, "/tmp/SimpleAureliaSplineCoeff_sgy.txt");
+		#endif	
+		finp = fopen(buffer1,"r");	
+		if(finp == NULL) 
+			Error("Error opening files. (sgy)\n");
+		
+		/*read until EOF reached in input  */ 
+		/* Message("\nSplines: \n"); */
+		i = 1;
+		while( i < numSplines + 5) 
+		{
+			if (i < 5) 
+				fgets(temp, sizeof(temp), finp); /* read the 4 header lines; do nothing  */
+			else 
+			{
+				fgets(line, sizeof(line), finp);
+				c = i-5;
+				sscanf(line, "%lf %lf %lf %lf", &ccoeff_sgy[c][3], &ccoeff_sgy[c][2],
+					&ccoeff_sgy[c][1], &ccoeff_sgy[c][0]);
+				/* Message("%lf  %lf  %lf  %lf\n",ccoeff_sgy[c][3],ccoeff_sgy[c][2],ccoeff_sgy[c][1],ccoeff_sgy[c][0]); */
+			}
+			
+			i++;
+		}
+		
+		fclose(finp);
+		readInCoeff_sgy = 1;
+	}
+	
+	/* compute s using the spline coefficients  */
+	coeffDelta = 1.0 / numSplines;
+	splineN =  floor(t_norm/coeffDelta);
+	tDelta = fmod(t_norm, coeffDelta);
+	for( j = 0; j < 4; j++) 
+	{
+		*sgy_ptr += ccoeff_sgy[splineN][j] * pow(tDelta,j);
+	}
+	/* Message("\ncoeffDelta = %lf, splineN = %i, tDelta = %lf, sgy = %lf\n",coeffDelta,splineN,tDelta,*sgy_ptr); */
+
+}
 
 
 /*---------- Load_a_sub ------------------------------------

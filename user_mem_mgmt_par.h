@@ -11,5 +11,6 @@ int Init_node_mem(Thread *tf);
 int Reinit_node_mem_int(Thread *tf, int memslot, int val);
 int Reinit_node_mem_double(Thread *tf, int memslot, double val);
 int Reinit_node_mem_char(Thread *tf, int memslot, char val);
+int Fix_tip_node_coords(Thread *tf, double x_target, double y_target);
 
 #endif
