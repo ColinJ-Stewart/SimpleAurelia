@@ -177,7 +177,8 @@ double Get_SimTimeInCycle(char meshZone)
 	/* ---------------------------------------------------------------------------------------- */
 	else
 	{
-		N_RAMPSTEPS = Get_N_RAMPSTEPS(0.24);	/* ramp lasts 5% of period*/
+		 /* N_RAMPSTEPS = Get_N_RAMPSTEPS(PAUSE_FRAC - 0.01); */ 	 /* ramp lasts almost all pause period*/
+		 N_RAMPSTEPS = Get_N_RAMPSTEPS(0.19); 	 /*ramp lasts 9% of period*/
 		
 		/* first time step */
 		if (N_TIME == 0) 
@@ -262,7 +263,7 @@ double Get_SimTimeInCycle(char meshZone)
 		
 		if ( NewTimeStepForThisZone(meshZone) )
 		{
-			Message0("\nCurrent time: %lf\ttSim_ex: %lf\ttauSim: %lf\ttimestepSim: %lf\n",
+			Message0("\nCurrent time: %lf\ttSim_ex: %lf\ttauSim: %10.10f\ttimestepSim: %10.10f\n",
 				CURRENT_TIME, tSim_ex, tauSim, timestepSim);
 		}
 	}
@@ -274,7 +275,7 @@ double Get_SimTimeInCycle(char meshZone)
 		
 		if ( NewTimeStepForThisZone(meshZone) )
 		{
-			Message0("\nCurrent time: %lf\ttSim_sub: %lf\ttauSim: %lf\ttimestepSim: %lf\n",
+			Message0("\nCurrent time: %lf\ttSim_sub: %lf\ttauSim: %10.10f\ttimestepSim: %10.10f\n",
 				CURRENT_TIME, tSim_sub, tauSim, timestepSim);
 		}
 	}

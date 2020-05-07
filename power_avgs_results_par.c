@@ -1,6 +1,6 @@
 #include "power_avgs_results_par.h"
 
-/** global variables * */
+/** global variables **/
 #if !RP_NODE	/* SERIAL or HOST */
 static double vel_tot = 0.0;				/* running sum of velocity in this cycle [m/s] */
 static double f_tot = 0.0;					/* running sum of net force [N] */
@@ -9,6 +9,7 @@ static double f_thrust_B_tot = 0.0;			/* running sum of thrust force [N] as defi
 static double f_drag_SMC_tot = 0.0;			/* running sum of drag (friction) force [N] as defined by Sahin, Mohseni, and Colin */
 static double f_drag_B_tot = 0.0;			/* running sum of drag force [N] as defined by Borazjani et al */
 static double P_in_tot = 0.0;				/* running sum of propulsive power input [W] */
+static double P_loss_tot = 0.0;
 static double P_thrust_SMC_tot = 0.0;		/* running sum of thrust power [W] as defined by Sahin, Mohseni, and Colin */
 static double P_thrust_B_tot = 0.0;			/* running sum of thrust power [W] as defined by Borazjani et al */
 static double P_drag_SMC_tot = 0.0;			/* running sum of drag (friction) power [W] as defined by Sahin, Mohseni, and Colin */
@@ -16,7 +17,6 @@ static double P_drag_B_tot = 0.0;			/* running sum of drag power [W] as defined 
 static int kavg = 0;						/* number of measurements/timesteps */
 #endif
 
-/** Function definitions * */
 /*---------- Compute_Power_In ------------------------------------
 Purpose: 
 
@@ -62,7 +62,8 @@ double Compute_Power_In(Thread *tf, double velx, double vely)
 										+ (A[1]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[1]) * F_V(f,tf) );
 				/* _______________________________________________________  */
 			}
-		} end_f_loop(f,tf)
+		} 
+		end_f_loop(f,tf)
 		
 		#if RP_NODE
 			power = PRF_GRSUM1(power);
@@ -72,12 +73,58 @@ double Compute_Power_In(Thread *tf, double velx, double vely)
 	#endif
 }
 
+/**---------- Compute_Power_Loss ------------------------------------
+*  Power loss, or "side power", as described in Borazjani and Sotiropoulos 2009
+----------------------------------------------------------------*/
+double Compute_Power_Loss(Thread *tf, double velx, double vely) 
+{
+	#if RP_HOST
+		return 0.0;
+	#endif
+	
+	
+	#if !RP_HOST
+		face_t f;
+		double A[ND_ND];
+		double power = 0.0;
+		
+
+		/* loop through cells on  surface, calculating power from each */
+		begin_f_loop(f,tf) 
+		{
+			if PRINCIPAL_FACE_P(f,tf)
+			{ 
+				F_AREA(A,f,tf);
+							
+				/* _______________________________________________________ */
+				
+				/* thrustDebugVisc2 = thrustDebugVisc2 + 2*M_PI*(A[0]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[0]); */
+				power = power + -2*M_PI * (A[1]*F_P(f,tf) - F_STORAGE_R_N3V(f,tf,SV_WALL_SHEAR)[1]) * F_V(f,tf);
+				/* _______________________________________________________ */
+			}
+		} 
+		end_f_loop(f,tf)
+		
+		#if RP_NODE
+			power = PRF_GRSUM1(power);
+		#endif
+
+		return power;
+		
+	#endif
+
+}
 
 /*---------- Compute_Power_Out -----------------------------------
 Purpose: 
 
-Input:	FILE *stream	-	File stream
----------------------------------------------------------------- */
+Input: 
+	f_thrust_SMC_ptr -- thrust force [N] as defined by Sahin, Mohseni, and Colin 
+	f_thrust_B_ptr -- thrust force [N] as defined by Borazjani et al
+	f_drag_SMC_ptr -- drag (friction) force [N] as defined by Sahin, Mohseni, and Colin
+	f_drag_B_ptr -- drag force [N] as defined by Borazjani et al
+	
+----------------------------------------------------------------*/
 void Compute_Power_Out(double velx, double vely, 
 						double *f_thrust_SMC_ptr, double *f_thrust_B_ptr, 
 						double *f_drag_SMC_ptr, double *f_drag_B_ptr,
@@ -203,13 +250,14 @@ Input:	FILE *stream	-	File stream
 ---------------------------------------------------------------- */
 void Compute_Averages(double next_vel, double f_net, 
 	double f_thrust_SMC, double f_thrust_B, double f_drag_SMC, 
-	double f_drag_B, double P_in, double P_thrust_SMC, 
+	double f_drag_B, double P_in, double P_loss, double P_thrust_SMC, 
 	double P_thrust_B, double P_drag_SMC, double P_drag_B) 
 {
 	#if !RP_NODE	/*SERIAL or HOST */
 	double vel_avg, Re_avg;
 	double f_avg, f_thrust_SMC_avg, f_thrust_B_avg, f_drag_SMC_avg, f_drag_B_avg;
 	double P_in_avg, P_thrust_SMC_avg, P_thrust_B_avg, P_drag_SMC_avg, P_drag_B_avg;
+	double P_loss_avg;
 	double eff_SMC, eff_B, COT;
 	double mass_jelly = Get_Mass();
 	int cycleN = Get_CycleNumber();
@@ -226,6 +274,7 @@ void Compute_Averages(double next_vel, double f_net,
 	f_drag_B_tot = f_drag_B_tot + f_drag_B;
 	
 	P_in_tot = P_in_tot + P_in;
+	P_loss_tot = P_loss_tot + P_loss;
 	
 	P_thrust_SMC_tot = P_thrust_SMC_tot + P_thrust_SMC;
 	P_thrust_B_tot = P_thrust_B_tot + P_thrust_B;
@@ -236,7 +285,8 @@ void Compute_Averages(double next_vel, double f_net,
 	
 	/* at the end of each swimming cycle, compute cycle average values and print out to file  */
 	Message("New_Cycle = %i\n", NewCycle());
-	if (NewCycle()) {
+	if (NewCycle()) 
+	{
 		Message("Computing averages... ");
 		
 		vel_avg = vel_tot/kavg;	/* go back to using the above code after confirming the denominator  */
@@ -247,6 +297,7 @@ void Compute_Averages(double next_vel, double f_net,
 		f_drag_SMC_avg = f_drag_SMC_tot/kavg;
 		f_drag_B_avg = f_drag_B_tot/kavg;
 		P_in_avg = P_in_tot/kavg;
+		P_loss_avg = P_loss_tot/kavg;
 		P_thrust_SMC_avg = P_thrust_SMC_tot/kavg;
 		P_thrust_B_avg = P_thrust_B_tot/kavg;
 		P_drag_SMC_avg = P_drag_SMC_tot/kavg;
@@ -259,7 +310,8 @@ void Compute_Averages(double next_vel, double f_net,
 		
 		Message("Writing to averages_and_eff.txt... ");
 		/* write out averages and efficiencies  */
-		if (cycleN == 2) {		/* create file and write header */
+		if (cycleN == 2) 
+		{		/* create file and write header */
 			favgs = fopen("averages_and_eff.txt","w+");
 			fprintf(favgs,"cycleN\t");
 			fprintf(favgs,"Time (s)\t");
@@ -271,6 +323,7 @@ void Compute_Averages(double next_vel, double f_net,
 			fprintf(favgs,"Drag_SMC_avg (N)\t");
 			fprintf(favgs,"Drag_B_avg (N)\t");
 			fprintf(favgs,"Power_in_avg (W)\t");
+			fprintf(favgs,"Power_loss_avg (W)\t");
 			fprintf(favgs,"Power_thrust_SMC_avg (W)\t");
 			fprintf(favgs,"Power_thrust_B_avg (W)\t");
 			fprintf(favgs,"Power_drag_SMC_avg (W)\t");
@@ -293,6 +346,7 @@ void Compute_Averages(double next_vel, double f_net,
 		fprintf(favgs,"%16.12f\t", f_drag_SMC_avg);
 		fprintf(favgs,"%16.12f\t", f_drag_B_avg);
 		fprintf(favgs,"%16.12f\t", P_in_avg);
+		fprintf(favgs,"%16.12f\t", P_loss_avg);
 		fprintf(favgs,"%16.12f\t", P_thrust_SMC_avg);
 		fprintf(favgs,"%16.12f\t", P_thrust_B_avg);
 		fprintf(favgs,"%16.12f\t", P_drag_SMC_avg);
@@ -311,6 +365,7 @@ void Compute_Averages(double next_vel, double f_net,
 		f_drag_SMC_tot = 0.0;
 		f_drag_B_tot = 0.0;
 		P_in_tot = 0.0;
+		P_loss_tot = 0.0;
 		P_thrust_SMC_tot = 0.0;
 		P_thrust_B_tot = 0.0;
 		P_drag_SMC_tot = 0.0;
@@ -347,6 +402,7 @@ void Create_Disp_OutputFile(char side)
 		fprintf(fdisp,"Drag_SMC (N)\t");
 		fprintf(fdisp,"Drag_B (N)\t");			
 		fprintf(fdisp,"Power in (W)\t");
+		fprintf(fdisp,"Power loss (W)\t");
 		fprintf(fdisp,"Power_thrust_SMC (W)\t");
 		fprintf(fdisp,"Power_thrust_B (W)\t");
 		fprintf(fdisp,"Power_drag_SMC (W)\t");
@@ -388,7 +444,8 @@ Input:	FILE *stream	-	File stream
 ---------------------------------------------------------------- */
 void Write_to_Disp_OutputFile(char side, double x, double vel, double del_x, 
 	double f_net, double f_thrust_SMC, double f_thrust_B, double f_drag_SMC, double f_drag_B, 
-	double P_in, double P_thrust_SMC, double P_thrust_B, double P_drag_SMC, double P_drag_B)  
+	double P_in, double P_thrust_SMC, double P_thrust_B, double P_drag_SMC, double P_drag_B,
+	double P_loss)  
 {
 	#if !RP_NODE	/*SERIAL or HOST */
 	FILE *fdisp;
@@ -407,6 +464,7 @@ void Write_to_Disp_OutputFile(char side, double x, double vel, double del_x,
 		fprintf(fdisp,"%16.12f\t",f_drag_SMC);
 		fprintf(fdisp,"%16.12f\t",f_drag_B);
 		fprintf(fdisp,"%16.12f\t",P_in);
+		fprintf(fdisp,"%16.12f\t",P_loss);
 		fprintf(fdisp,"%16.12f\t",P_thrust_SMC);
 		fprintf(fdisp,"%16.12f\t",P_thrust_B);
 		fprintf(fdisp,"%16.12f\t",P_drag_SMC);
@@ -427,6 +485,7 @@ void Write_to_Disp_OutputFile(char side, double x, double vel, double del_x,
 		fprintf(fdisp,"%16.12f\t",f_drag_SMC);
 		fprintf(fdisp,"%16.12f\t",f_drag_B);
 		fprintf(fdisp,"%16.12f\t",P_in);
+		fprintf(fdisp,"%16.12f\t",P_loss);
 		fprintf(fdisp,"%16.12f\t",P_thrust_SMC);
 		fprintf(fdisp,"%16.12f\t",P_thrust_B);
 		fprintf(fdisp,"%16.12f\t",P_drag_SMC);

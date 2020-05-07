@@ -16,6 +16,8 @@ void Load_sa(double t_norm, double *sa_ptr);
 void Load_sb(double t_norm, double *sb_ptr);
 void Load_sd(double t_norm, double *sd_ptr);
 void Load_sg(double t_norm, double *sg_ptr);
+void Load_sgx(double t_norm, double *sgx_ptr);
+void Load_sgy(double t_norm, double *sgy_ptr);
 void Load_a_sub(double *a_sub_ptr, double a, Node *holdNodes[], int nNodes, 
 				double SmaxUnflexed, int idArray[][2], double arclengthArray_unflex[]);
 void Load_b_sub(double *b_sub_ptr, double b, Node *holdNodes[], int nNodes, 

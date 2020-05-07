@@ -62,6 +62,12 @@ void Get_b_sub(double *b_sub_ptr, double b, Node *holdNodes[], int nNodes,
 void Get_FlexPoint(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
 					double sg, double g[], int idArray[][2]);
 
+void Get_FlexPoint_x(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
+					double sg, double gx[], int idArray[][2], double tau_norm);
+
+void Get_FlexPoint_y(char meshZone, Node *holdNodes[], int nNodes, double SmaxUnflexed, 
+					double sg, double gy[], int idArray[][2], double tau_norm);
+
 void Move_Nodes_to_Stored_Positions(Thread *tf, int x_memslot, int y_memslot);
 
 void Store_OldKinematicVars(void);

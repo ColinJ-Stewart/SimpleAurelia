@@ -8,6 +8,7 @@
 
 /* global */
 extern int isPaused;
+extern int isRamping;
 
 /* prototypes */
 void Print_Timestep_Header(void);
