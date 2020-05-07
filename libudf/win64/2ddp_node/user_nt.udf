@@ -1,3 +1,0 @@
-SOURCES =  $(SRC)load_kinematics_par.c $(SRC)mesh_motion_par.c $(SRC)power_avgs_results_par.c $(SRC)quicksort_par.c $(SRC)SimpleAurelia_main_par.c $(SRC)swim_dynamics_par.c $(SRC)timing_and_counters_par.c $(SRC)user_mem_mgmt_par.c 
-VERSION = 2ddp_node
-PARALLEL_NODE = pcmpi
